@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+
+{% block title %}Launch Apprentice Pod | Multiply{% endblock %}
+
+{% block content %}
+<div class="bg-white p-8 rounded-lg shadow-md max-w-lg mx-auto">
+    <h2 class="text-2xl font-bold mb-2 text-indigo-900">Launch Apprentice Pod</h2>
+    <p class="text-sm text-gray-600 mb-6">Appoint a disciple to lead a new group while retaining silent read-only oversight.</p>
+    
+    <form method="post" class="space-y-4">
+        {% csrf_token %}
+        {{ form.as_p }}
+        
+        <button type="submit" class="w-full bg-emerald-700 text-white py-2 rounded-lg font-semibold hover:bg-emerald-800 transition">
+            Deploy Apprentice & Create Pod
+        </button>
+    </form>
+</div>
+{% endblock %}

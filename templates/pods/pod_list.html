@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+
+{% block title %}My Pods | Multiply{% endblock %}
+
+{% block content%}
+<div class="space-y-8">
+    <div class="flex justify-between items-center">
+        <h1 class="text-3xl font-bold text-gray-900">My Discipleship Pods</h1>
+        <div class="space-x-2">
+            <a href="{% url 'pod_create' %}" class="bg-indigo-700 text-white px-4 py-2 rounded-lg font-semibold hover:bg-indigo-800 text-sm">
+                + Create New Pod
+            </a>
+            <a href="{% url 'launch_apprentice' %}" class="bg-emerald-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-emerald-700 text-sm">
+                + Launch Apprentice Pod
+            </a>
+        </div>
+    </div>
+
+    <!--Pods i Lead-->
+    <div>
+        <h2 class="text-xl font-bold text-indigo-900 border-b pb-2 mb-4">Pods I Lead (Leader)</h2>
+        {% if my_leading_pods %}
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {% for pod in my_leading_pods %}
+            <div class="bg-white p-5 rounded-lg shadow-sm border border-indigo-100 hover:shadow-md transition">
+                <div class="flex justify-between items-start mb-2">
+                    <h3 class="font-bold text-lg text-indigo-900">{{ pod.name }}</h3>
+                    <span class="bg-indigo-100 text-indigo-800 text-xs px-2 py-1 rounded font-semibold">Leader</span>
+                </div>
+                <p class="text-sm text-gray-600 mb-4">{{ pod.description|default:""No description.| truncatewords: 15 }}</p>
+                <a href="{% url 'pod_detail' pod.id %}" class="text-indigo-600 font-semibold text-sm hover:underline">View Pod Dashboard &rarr;</a>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p class="text-sm text-gray-500 italic">You are not leading any Pods Yet.</p>
+    {% endif %}
+    </div>
+
+<!-- Pods I Belong To -->
+    <div>
+        <h2 class="text-xl font-bold text-gray-800 border-b pb-2 mb-4">Pods I Participate In (Disciple / Apprentice)</h2>
+        {% if my_memberships %}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {% for membership in my_memberships %}
+                    <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition">
+                        <div class="flex justify-between items-start mb-2">
+                            <h3 class="font-bold text-lg text-gray-800">{{ membership.pod.name }}</h3>
+                            <span class="bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded font-semibold">{{ membership.get_role_display }}</span>
+                        </div>
+                        <p class="text-xs text-gray-500 mb-2"><strong>Leader:</strong> {{ membership.pod.leader.username }}</p>
+                        <a href="{% url 'pod_detail' membership.pod.id %}" class="text-indigo-600 font-semibold text-sm hover:underline">Enter Pod &rarr;</a>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="text-sm text-gray-500 italic">You are not a member of any other Pods.</p>
+        {% endif %}
+    </div>
+
+    <!-- Pods I Oversee -->
+    <div>
+        <h2 class="text-xl font-bold text-emerald-900 border-b pb-2 mb-4">Apprentice Pods Under My Oversight</h2>
+        {% if my_oversight_pods %}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {% for oversight in my_oversight_pods %}
+                    <div class="bg-emerald-50 p-5 rounded-lg border border-emerald-200">
+                        <div class="flex justify-between items-start mb-2">
+                            <h3 class="font-bold text-lg text-emerald-900">{{ oversight.apprentice_pod.name }}</h3>
+                            <span class="bg-emerald-200 text-emerald-800 text-xs px-2 py-1 rounded font-semibold">Mentor Oversight</span>
+                        </div>
+                        <p class="text-xs text-emerald-700 mb-2"><strong>Apprentice Leader:</strong> {{ oversight.apprentice_pod.leader.username }}</p>
+                        <a href="{% url 'pod_detail' oversight.apprentice_pod.id %}" class="text-emerald-800 font-semibold text-sm hover:underline">Read-Only View &rarr;</a>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="text-sm text-gray-500 italic">You are not overseeing any apprentice pods currently.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

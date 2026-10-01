@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+
+{% block title %}Submit Reflection | Multiply{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto bg-white p-8 rounded-2xl shadow-sm border border-slate-200 my-6 space-y-6">
+    
+    <!-- Challenge Summary Card -->
+    <div class="bg-indigo-50 border border-indigo-100 p-5 rounded-xl">
+        <span class="text-[11px] font-bold text-indigo-700 uppercase tracking-wider">Action Challenge</span>
+        <h2 class="text-xl font-bold text-indigo-950 mt-1">{{ assignment.title }}</h2>
+        <p class="text-xs text-indigo-900/80 mt-2 leading-relaxed">{{ assignment.instruction }}</p>
+        {% if assignment.due_date %}
+            <p class="text-[11px] font-semibold text-indigo-600 mt-3">Due Date: {{ assignment.due_date|date:"M d, Y" }}</p>
+        {% endif %}
+    </div>
+
+    <!-- Submission Form (Must include enctype="multipart/form-data" for file uploads) -->
+    <form method="post" enctype="multipart/form-data" class="space-y-5">
+        {% csrf_token %}
+        
+        <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                Written Reflection <span class="text-red-500">*</span>
+            </label>
+            {{ form.written_content }}
+        </div>
+
+        <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                Audio Recording (Optional)
+            </label>
+            <p class="text-[11px] text-slate-500 mb-2">Upload an MP3/WAV audio note sharing your reflection.</p>
+            {{ form.audio_reflection }}
+        </div>
+
+        <div class="pt-3 flex justify-end space-x-3 border-t">
+            <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition">
+                Submit Reflection
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

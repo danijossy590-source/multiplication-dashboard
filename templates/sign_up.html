@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+
+{% block title %}Sign Up | Multiply{% endblock %}
+
+{% block content %}
+<div class="bg-white p-8 rounded-lg shadow-md max-w-md mx-auto">
+    <h2 class="text-2xl font-bold mb-6 text-center text-indigo-900">Create Your Account</h2>
+    
+    <form method="post" class="space-y-4">
+        {% csrf_token %}
+        {{ form.as_p }}
+        
+        <button type="submit" class="w-full bg-indigo-800 text-white py-2 rounded-lg font-semibold hover:bg-indigo-900 transition">
+            Register
+        </button>
+    </form>
+    
+    <p class="text-sm text-center mt-4 text-gray-600">
+        Already have an account? <a href="{% url 'login' %}" class="text-indigo-600 font-medium">Log in here</a>
+    </p>
+</div>
+{% endblock %}

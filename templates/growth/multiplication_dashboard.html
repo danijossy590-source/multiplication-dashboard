@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+
+{% block title %}Multiplication Dashboard | Multiply{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-8 space-y-8">
+
+    <!-- Header Section -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+            <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">Multiplication Dashboard</h1>
+            <p class="text-sm text-slate-500 mt-1">Track your spiritual lineage, active pods, and generational impact.</p>
+        </div>
+        <div class="flex items-center space-x-3">
+            <a href="{% url 'assignment_create' %}" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs px-4 py-2.5 rounded-xl shadow-sm transition">
+                + Issue New Challenge
+            </a>
+        </div>
+    </div>
+
+    <!-- Analytics Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Disciples Footprint</span>
+            <div class="text-3xl font-black text-slate-900 mt-2">{{ stats.total_footprint }}</div>
+            <p class="text-[11px] text-emerald-600 mt-1 font-semibold">Across all spiritual generations</p>
+        </div>
+
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Direct Mentees (Gen 1)</span>
+            <div class="text-3xl font-black text-indigo-600 mt-2">{{ stats.gen_1_count }}</div>
+            <p class="text-[11px] text-slate-500 mt-1">Directly discipled by you</p>
+        </div>
+
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Multiplied Disciples (Gen 2+)</span>
+            <div class="text-3xl font-black text-emerald-600 mt-2">{{ stats.gen_2_plus_count }}</div>
+            <p class="text-[11px] text-emerald-600 mt-1 font-semibold">Spiritual grand-disciples</p>
+        </div>
+
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Generational Depth</span>
+            <div class="text-3xl font-black text-amber-500 mt-2">{{ stats.max_depth }} Tiers</div>
+            <p class="text-[11px] text-slate-500 mt-1">Deepest multiplication depth</p>
+        </div>
+    </div>
+
+    <!-- Relational Visualizer Tree -->
+    <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+        <div class="border-b pb-4">
+            <h2 class="text-lg font-bold text-slate-900">Spiritual Lineage Tree</h2>
+            <p class="text-xs text-slate-500">Visualizing disciple generation levels and leader multiplication readiness.</p>
+        </div>
+
+        {% if stats.tree %}
+            <div class="overflow-x-auto py-4">
+                <ul class="space-y-4">
+                    {% for node in stats.tree %}
+                        {% include "growth/includes/tree_node.html" with node=node %}
+                    {% endfor %}
+                </ul>
+            </div>
+        {% else %}
+            <div class="text-center py-12 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                <i class="bi bi-diagram-3 text-4xl text-slate-300"></i>
+                <p class="text-sm font-semibold text-slate-600 mt-2">No disciples connected yet.</p>
+                <p class="text-xs text-slate-400">Invite mentees or assign them to a pod to start building your discipleship tree.</p>
+            </div>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}

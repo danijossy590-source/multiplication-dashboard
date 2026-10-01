@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+
+{% block title %}Create Practical Challenge | Multiply{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto bg-white p-8 rounded-2xl shadow-sm border border-slate-200 my-6">
+    <div class="mb-6 border-b pb-4">
+        <h1 class="text-2xl font-bold text-slate-900">Issue Action Challenge</h1>
+        <p class="text-xs text-slate-500 mt-1">Assign a real-world disciple challenge linked to a lesson or pod.</p>
+    </div>
+
+    <form method="post" class="space-y-4">
+        {% csrf_token %}
+        {{ form.as_p }}
+
+        <div class="pt-4 flex justify-end space-x-3">
+            <a href="{% url 'lesson_list' %}" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg">Cancel</a>
+            <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition">
+                Publish Challenge
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

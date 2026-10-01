@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} | Multiply{% endblock %}
+
+{% block content %}
+<div class="bg-white p-8 rounded-lg shadow-md max-w-lg mx-auto">
+    <h2 class="text-2xl font-bold mb-6 text-indigo-900">{{ title }}</h2>
+    <form method="post" class="space-y-4">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit" class="w-full bg-indigo-800 text-white py-2 rounded-lg font-semibold hover:bg-indigo-900 transition">
+            Save Pod
+        </button>
+    </form>
+</div>
+{% endblock %}

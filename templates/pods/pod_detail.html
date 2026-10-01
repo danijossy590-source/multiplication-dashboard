@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ pod.name }} | Multiply{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Pod Banner -->
+    <div class="bg-white p-6 rounded-lg shadow-md border-l-4 {% if is_overseers %}border-emerald-600{% else %}border-indigo-800{% endif %}">
+        <div class="flex justify-between items-center">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">{{ pod.name }}</h1>
+                <p class="text-gray-600 mt-1">{{ pod.description|default:"No description provided." }}</p>
+                <p class="text-xs text-gray-400 mt-2">Created on {{ pod.created_at|date:"M d, Y" }}</p>
+            </div>
+            <div>
+                {% if is_leader %}
+                    <span class="bg-indigo-800 text-white text-xs px-3 py-1.5 rounded-full font-bold">Primary Leader</span>
+                {% elif is_overseers %}
+                    <span class="bg-emerald-700 text-white text-xs px-3 py-1.5 rounded-full font-bold">Mentor Oversight (Read-Only)</span>
+                {% else %}
+                    <span class="bg-gray-700 text-white text-xs px-3 py-1.5 rounded-full font-bold">Member</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Members List -->
+        <div class="md:col-span-2 bg-white p-6 rounded-lg shadow-md">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Pod Members ({{ members|length }})</h2>
+            <ul class="divide-y">
+                {% for m in members %}
+                    <li class="py-3 flex justify-between items-center">
+                        <div>
+                            <p class="font-semibold text-gray-800">{{ m.user.get_full_name|default:m.user.username }}</p>
+                            <p class="text-xs text-gray-500">@{{ m.user.username }}</p>
+                        </div>
+                        <div>
+                            <span class="text-xs px-2.5 py-1 rounded font-medium 
+                                {% if m.role == 'LEADER' %}bg-indigo-100 text-indigo-800
+                                {% elif m.role == 'APPRENTICE' %}bg-emerald-100 text-emerald-800
+                                {% else %}bg-gray-100 text-gray-700{% endif %}">
+                                {{ m.get_role_display }}
+                            </span>
+                        </div>
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <!-- Leader Management Sidebar -->
+        {% if is_leader %}
+        <div class="bg-white p-6 rounded-lg shadow-md space-y-4">
+            <h3 class="text-lg font-bold text-indigo-900 border-b pb-2">Add New Member</h3>
+            <form method="post" class="space-y-3">
+                {% csrf_token %}
+                <input type="hidden" name="add_member" value="1">
+                {{ add_member_form.as_p }}
+                <button type="submit" class="w-full bg-indigo-800 text-white py-2 rounded text-sm font-semibold hover:bg-indigo-900">
+                    Add Member
+                </button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

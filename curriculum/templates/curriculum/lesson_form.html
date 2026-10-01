@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} | Multiply{% endblock %}
+
+{% block content %}
+<div class="bg-white p-8 rounded-lg shadow-md max-w-2xl mx-auto">
+    <h2 class="text-2xl font-bold mb-6 text-indigo-900">{{ title }}</h2>
+    
+    <!-- IMPORTANT: enctype="multipart/form-data" is REQUIRED for file uploads -->
+    <form method="post" enctype="multipart/form-data" class="space-y-4">
+        {% csrf_token %}
+        
+        <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">Title</label>
+            {{ form.title }}
+        </div>
+
+        <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">Summary / Description</label>
+            {{ form.description }}
+        </div>
+
+        <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">Lesson Content & Notes</label>
+            {{ form.content }}
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Audio MP3 File</label>
+                {{ form.audio_file }}
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">PDF Study Guide</label>
+                {{ form.pdf_resource }}
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-2 pt-2">
+            {{ form.is_master_template }}
+            <label class="text-sm text-gray-700 font-medium">Publish as Master Curriculum Template</label>
+        </div>
+
+        <button type="submit" class="w-full bg-indigo-800 text-white py-2.5 rounded-lg font-semibold hover:bg-indigo-900 transition mt-4">
+            Save & Publish Lesson
+        </button>
+    </form>
+</div>
+{% endblock %}

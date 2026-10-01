@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ lesson.title }} | Multiply{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+    <!-- Header Card -->
+    <div class="bg-white p-6 rounded-lg shadow-md border-t-4 border-indigo-900">
+        <div class="flex justify-between items-start">
+            <div>
+                <span class="text-xs font-bold uppercase tracking-wider text-indigo-700">
+                    {% if lesson.is_master_template %}Master Curriculum{% else %}Pod Edition ({{ lesson.pod.name }}){% endif %}
+                </span>
+                <h1 class="text-3xl font-bold text-gray-900 mt-1">{{ lesson.title }}</h1>
+                <p class="text-sm text-gray-500 mt-1">Uploaded by {{ lesson.created_by.username }} on {{ lesson.created_at|date:"M d, Y" }}</p>
+            </div>
+
+            <!-- Teach This Action Button -->
+            {% if user_is_a_leader %}
+                <a href="{% url 'teach_this' lesson.id %}" class="bg-emerald-600 text-white text-sm px-4 py-2 rounded-lg font-bold hover:bg-emerald-700 shadow transition flex items-center space-x-1">
+                    <span>⚡ Teach This</span>
+                </a>
+            {% endif %}
+        </div>
+
+        {% if lesson.description %}
+            <div class="mt-4 p-3 bg-indigo-50 rounded text-sm text-indigo-900 border border-indigo-100">
+                <strong>Summary:</strong> {{ lesson.description }}
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Audio Player Component (With Custom JavaScript Controls) -->
+    {% if lesson.audio_file %}
+        <div class="bg-gradient-to-r from-indigo-900 to-purple-900 text-white p-6 rounded-lg shadow-md">
+            <div class="flex items-center space-x-3 mb-3">
+                <span class="text-2xl">🎧</span>
+                <div>
+                    <h3 class="font-bold text-lg">Audio Teaching Message</h3>
+                    <p class="text-xs text-indigo-200">Listen to the recorded message for this lesson</p>
+                </div>
+            </div>
+
+            <!-- HTML5 Audio Element -->
+            <audio id="audio-player" class="w-full mt-2 rounded" controls>
+                <source src="{{ lesson.audio_file.url }}" type="audio/mpeg">
+                Your browser does not support the audio element.
+            </audio>
+
+            <!-- Custom JS Speed Controls -->
+            <div class="flex items-center space-x-2 mt-3 text-xs text-indigo-200">
+                <span>Playback Speed:</span>
+                <button onclick="setAudioSpeed(1.0)" class="bg-white/10 px-2 py-1 rounded hover:bg-white/20">1.0x</button>
+                <button onclick="setAudioSpeed(1.25)" class="bg-white/10 px-2 py-1 rounded hover:bg-white/20">1.25x</button>
+                <button onclick="setAudioSpeed(1.5)" class="bg-white/10 px-2 py-1 rounded hover:bg-white/20">1.5x</button>
+            </div>
+        </div>
+    {% endif %}
+
+    <!-- Main Lesson Text Content -->
+    <div class="bg-white p-8 rounded-lg shadow-md space-y-4">
+        <h2 class="text-xl font-bold text-gray-800 border-b pb-2">Lesson Material & Notes</h2>
+        <div class="prose max-w-none text-gray-800 leading-relaxed whitespace-pre-line">
+            {{ lesson.content }}
+        </div>
+    </div>
+
+    <!-- Supplementary PDF Guide -->
+    {% if lesson.pdf_resource %}
+        <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <span class="text-3xl text-red-600">📄</span>
+                <div>
+                    <h4 class="font-bold text-gray-800">Printable Study Guide (PDF)</h4>
+                    <p class="text-xs text-gray-500">Download supplementary notes and discussion questions</p>
+                </div>
+            </div>
+            <a href="{{ lesson.pdf_resource.url }}" target="_blank" download class="bg-gray-800 text-white text-xs px-4 py-2 rounded font-semibold hover:bg-gray-900 transition">
+                Download PDF
+            </a>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Custom Audio Speed Control Script -->
+<script>
+    function setAudioSpeed(speed) {
+        const player = document.getElementById('audio-player');
+        if (player) {
+            player.playbackRate = speed;
+        }
+    }
+</script>
+{% endblock %}

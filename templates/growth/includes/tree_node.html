@@ -1,0 +1,29 @@
+<li class="pl-4 border-l-2 border-indigo-200 space-y-2">
+    <div class="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200 hover:border-indigo-300 transition">
+        <div class="flex items-center space-x-3">
+            <div class="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xs">
+                G{{ node.generation }}
+            </div>
+            <div>
+                <h4 class="text-xs font-bold text-slate-900">{{ node.name }}</h4>
+                <p class="text-[11px] text-slate-500">{{ node.email }}</p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-2">
+            {% if node.is_leader %}
+                <span class="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-200">Pod Leader</span>
+            {% endif %}
+            <span class="bg-indigo-50 text-indigo-700 text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                {{ node.completed_challenges }} Challenges Done
+            </span>
+        </div>
+    </div>
+
+    {% if node.children %}
+        <ul class="ml-4 space-y-2 mt-2">
+            {% for child in node.children %}
+                {% include "growth/includes/tree_node.html" with node=child %}
+            {% endfor %}
+        </ul>
+    {% endif %}
+</li>
