@@ -6,6 +6,10 @@ from .forms import CustomUserCreationForm, CustomUserChangeForm
 from .models import CustomUser, Mentorship
 
 
+def landing_view(request):
+    return render(request, 'landing.html')
+
+
 def register_view(request):
     """
     Handles new user registration using CustomUserCreationForm.
@@ -29,7 +33,7 @@ def register_view(request):
     else:
         form = CustomUserCreationForm()
 
-    return render(request, 'accounts/signup.html', {'form': form})
+    return render(request, 'sign_up.html', {'form': form})
 
 
 @login_required

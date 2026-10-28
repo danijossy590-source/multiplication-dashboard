@@ -12,7 +12,7 @@
     <!-- Navigation Header -->
     <nav class="bg-indigo-900 text-white shadow-md">
         <div class="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
-            <a href="/" class="font-bold text-xl tracking-wide">Camp of Gilgal | <span class="text-indigo-300">Multiply</span></a>
+            <a href="{% url 'landing' %}" class="font-bold text-xl tracking-wide">Camp of Gilgal | <span class="text-indigo-300">Multiply</span></a>
             <div class="space-x-4">
                 {% if user.is_authenticated %}
                     <span class="text-sm text-indigo-200">Hello, {{ user.username }}</span>
