@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+
+{% block title %}Admin Portal | Multiply{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <p class="text-sm font-semibold text-indigo-600">Administration</p>
+            <h1 class="text-2xl sm:text-3xl font-bold text-indigo-950">Platform dashboard</h1>
+        </div>
+        <a href="{% url 'admin_users' %}" class="rounded-lg bg-indigo-800 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-indigo-900">Manage users</a>
+    </div>
+
+    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <div class="rounded-xl bg-white p-4 shadow-sm"><p class="text-xs text-gray-500">Total users</p><p class="mt-1 text-2xl font-bold text-indigo-900">{{ total_users }}</p></div>
+        <div class="rounded-xl bg-white p-4 shadow-sm"><p class="text-xs text-gray-500">Administrators</p><p class="mt-1 text-2xl font-bold text-indigo-900">{{ admins }}</p></div>
+        <div class="rounded-xl bg-white p-4 shadow-sm"><p class="text-xs text-gray-500">Mentors</p><p class="mt-1 text-2xl font-bold text-indigo-900">{{ mentors }}</p></div>
+        <div class="rounded-xl bg-white p-4 shadow-sm"><p class="text-xs text-gray-500">Mentees</p><p class="mt-1 text-2xl font-bold text-indigo-900">{{ mentees }}</p></div>
+        <div class="rounded-xl bg-white p-4 shadow-sm"><p class="text-xs text-gray-500">Pods</p><p class="mt-1 text-2xl font-bold text-indigo-900">{{ total_pods }}</p></div>
+        <div class="rounded-xl bg-white p-4 shadow-sm"><p class="text-xs text-gray-500">Lessons</p><p class="mt-1 text-2xl font-bold text-indigo-900">{{ total_lessons }}</p></div>
+        <div class="rounded-xl bg-white p-4 shadow-sm"><p class="text-xs text-gray-500">Assignments</p><p class="mt-1 text-2xl font-bold text-indigo-900">{{ total_assignments }}</p></div>
+        <div class="rounded-xl bg-white p-4 shadow-sm"><p class="text-xs text-gray-500">Pending reflections</p><p class="mt-1 text-2xl font-bold text-indigo-900">{{ pending_reflections }}</p></div>
+    </div>
+
+    <div class="grid gap-6 lg:grid-cols-2">
+        <section class="rounded-xl bg-white p-4 sm:p-6 shadow-sm">
+            <h2 class="mb-4 font-bold text-indigo-950">Recent users</h2>
+            <div class="space-y-3">
+                {% for person in recent_users %}
+                <div class="flex items-center justify-between gap-3 border-b border-gray-100 pb-3 last:border-0">
+                    <div class="min-w-0"><p class="truncate font-semibold">{{ person.username }}</p><p class="truncate text-xs text-gray-500">{{ person.email }}</p></div>
+                    <span class="shrink-0 rounded-full bg-indigo-50 px-2 py-1 text-xs text-indigo-700">{{ person.role }}</span>
+                </div>
+                {% empty %}<p class="text-sm text-gray-500">No users yet.</p>{% endfor %}
+            </div>
+        </section>
+        <section class="rounded-xl bg-white p-4 sm:p-6 shadow-sm">
+            <h2 class="mb-4 font-bold text-indigo-950">Recent pods</h2>
+            <div class="space-y-3">
+                {% for pod in recent_pods %}
+                <div class="flex items-center justify-between gap-3 border-b border-gray-100 pb-3 last:border-0">
+                    <p class="font-semibold">{{ pod.name }}</p><p class="truncate text-xs text-gray-500">{{ pod.leader.username }}</p>
+                </div>
+                {% empty %}<p class="text-sm text-gray-500">No pods yet.</p>{% endfor %}
+            </div>
+        </section>
+    </div>
+</div>
+{% endblock %}
