@@ -57,6 +57,7 @@ if not DEBUG:
     SECURE_HSTS_PRELOAD = True
 
 AUTH_USER_MODEL = 'accounts.CustomUser'
+LOGIN_REDIRECT_URL = '/curriculum/'
 
 
 # Application definition

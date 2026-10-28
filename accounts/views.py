@@ -1,9 +1,19 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.views import LoginView
 from django.contrib import messages
 from .forms import CustomUserCreationForm, CustomUserChangeForm
 from .models import CustomUser, Mentorship
+
+
+class RoleBasedLoginView(LoginView):
+    template_name = 'accounts/login.html'
+
+    def get_success_url(self):
+        if self.request.user.is_staff or self.request.user.is_superuser:
+            return '/admin/'
+        return super().get_success_url()
 
 
 def landing_view(request):
@@ -38,6 +48,9 @@ def register_view(request):
 
 @login_required
 def profile_view(request):
+    if request.user.is_staff or request.user.is_superuser:
+        return redirect('/admin/')
+
     mentors = Mentorship.objects.filter(mentee=request.user).select_related('mentor')
     mentees = Mentorship.objects.filter(mentor=request.user).select_related('mentee')
 
