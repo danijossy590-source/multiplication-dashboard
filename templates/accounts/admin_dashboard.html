@@ -23,6 +23,29 @@
         <div class="rounded-xl bg-white p-4 shadow-sm"><p class="text-xs text-gray-500">Pending reflections</p><p class="mt-1 text-2xl font-bold text-indigo-900">{{ pending_reflections }}</p></div>
     </div>
 
+    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <a href="{% url 'admin_users' %}" class="rounded-xl bg-white p-5 shadow-sm border border-indigo-100 hover:shadow-md transition">
+            <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600">Users</p>
+            <h2 class="mt-2 text-xl font-bold text-indigo-950">Manage access</h2>
+            <p class="mt-2 text-sm text-gray-600">Admins, mentors, and mentees</p>
+        </a>
+        <a href="{% url 'pod_list' %}" class="rounded-xl bg-white p-5 shadow-sm border border-indigo-100 hover:shadow-md transition">
+            <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600">Pods</p>
+            <h2 class="mt-2 text-xl font-bold text-indigo-950">Create & manage</h2>
+            <p class="mt-2 text-sm text-gray-600">Create pods, add members, launch apprentices</p>
+        </a>
+        <a href="{% url 'lesson_list' %}" class="rounded-xl bg-white p-5 shadow-sm border border-indigo-100 hover:shadow-md transition">
+            <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600">Curriculum</p>
+            <h2 class="mt-2 text-xl font-bold text-indigo-950">Upload lessons</h2>
+            <p class="mt-2 text-sm text-gray-600">Teach master lessons to pods</p>
+        </a>
+        <a href="{% url 'launch_apprentice' %}" class="rounded-xl bg-white p-5 shadow-sm border border-indigo-100 hover:shadow-md transition">
+            <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600">Follow-up</p>
+            <h2 class="mt-2 text-xl font-bold text-indigo-950">Apprentice flow</h2>
+            <p class="mt-2 text-sm text-gray-600">Launch apprentice pods with oversight</p>
+        </a>
+    </div>
+
     <div class="grid gap-6 lg:grid-cols-2">
         <section class="rounded-xl bg-white p-4 sm:p-6 shadow-sm">
             <h2 class="mb-4 font-bold text-indigo-950">Recent users</h2>
