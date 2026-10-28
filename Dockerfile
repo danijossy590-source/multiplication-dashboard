@@ -25,4 +25,4 @@ COPY . /app/
 EXPOSE 8000
 
 # Default startup command (Gunicorn WSGI server)
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "3", "multiply.wsgi:application"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "3", "config.wsgi:application"]
