@@ -30,7 +30,15 @@ ALLOWED_HOSTS = [
     if host.strip()
 ]
 CSRF_TRUSTED_ORIGINS = [
-    origin.strip()
+    (
+        origin.strip()
+        if origin.strip().startswith(('http://', 'https://'))
+        else (
+            f"http://{origin.strip()}"
+            if origin.strip() in {'localhost', '127.0.0.1', '0.0.0.0'}
+            else f"https://{origin.strip()}"
+        )
+    )
     for origin in os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',')
     if origin.strip()
 ]
