@@ -38,6 +38,10 @@ def pod_list_view(request):
         'my_leading_pods': my_leading_pods,
         'my_memberships': my_memberships,
         'my_oversight_pods': my_oversight_pods,
+        'all_pods': Pod.objects.select_related('leader').order_by('name')
+        if request.user.is_staff or request.user.is_superuser
+        else Pod.objects.none(),
+        'is_admin': request.user.is_staff or request.user.is_superuser,
     }
     return render(request, 'pods/pod_list.html', context)
 
@@ -108,6 +112,7 @@ def pod_detail_view(request, pod_id):
         'is_leader': is_leader,
         'is_member': is_member,
         'is_overseers': is_overseers,
+        'is_admin': request.user.is_staff or request.user.is_superuser,
         'add_member_form': add_member_form,
     }
     return render(request, 'pods/pod_detail.html', context)
@@ -166,5 +171,3 @@ def launch_apprentice_pod_view(request):
         form = LaunchApprenticePodForm(leader=request.user)
 
     return render(request, 'pods/launch_apprentice.html', {'form': form})
-
-

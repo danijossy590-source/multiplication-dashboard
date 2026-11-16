@@ -32,6 +32,11 @@ def lesson_list_view(request):
         'master_lessons': master_lessons,
         'pod_lessons': pod_lessons,
         'search_query': search_query,
+        'can_create_lessons': (
+            request.user.is_staff
+            or request.user.is_superuser
+            or request.user.leading_pods.exists()
+        ),
     }
     return render(request, 'curriculum/lesson_list.html', context)
 

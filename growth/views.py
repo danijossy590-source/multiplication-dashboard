@@ -13,6 +13,10 @@ def assignment_create_view(request):
     """
     Allows mentors and leaders to create a new action assignment.
     """
+    if not (request.user.is_staff or request.user.is_superuser or request.user.leading_pods.exists()):
+        messages.error(request, "Only staff or pod leaders can create assignments.")
+        return redirect('multiplication_dashboard')
+
     if request.method == 'POST':
         form = AssignmentForm(request.POST)
         if form.is_valid():
@@ -121,6 +125,11 @@ def multiplication_dashboard_view(request):
         'stats': stats,
         'recent_reflections': recent_reflections,
         'active_pods': active_pods,
+        'can_create_assignments': (
+            request.user.is_staff
+            or request.user.is_superuser
+            or request.user.leading_pods.exists()
+        ),
     }
     return render(request, 'growth/multiplication_dashboard.html', context)
 

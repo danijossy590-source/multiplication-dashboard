@@ -3,16 +3,19 @@
 {% block title %}Admin Portal | Multiply{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-            <p class="text-sm font-semibold text-indigo-600">Administration</p>
-            <h1 class="text-2xl sm:text-3xl font-bold text-indigo-950">Platform dashboard</h1>
+<div class="space-y-6 sm:space-y-8">
+    <header class="rounded-2xl bg-slate-950 p-5 text-white shadow-lg sm:p-8">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+                <p class="text-sm font-semibold uppercase tracking-widest text-indigo-300">Administrator workspace</p>
+                <h1 class="mt-2 text-2xl font-bold sm:text-3xl">Platform operations</h1>
+                <p class="mt-2 max-w-2xl text-sm text-slate-300">Manage accounts, review activity, and monitor the discipleship platform.</p>
+            </div>
+            <a href="{% url 'admin_users' %}" class="inline-flex justify-center rounded-lg bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-400">Manage users</a>
         </div>
-        <a href="{% url 'admin_users' %}" class="rounded-lg bg-indigo-800 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-indigo-900">Manage users</a>
-    </div>
+    </header>
 
-    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <div class="rounded-xl bg-white p-4 shadow-sm"><p class="text-xs text-gray-500">Total users</p><p class="mt-1 text-2xl font-bold text-indigo-900">{{ total_users }}</p></div>
         <div class="rounded-xl bg-white p-4 shadow-sm"><p class="text-xs text-gray-500">Administrators</p><p class="mt-1 text-2xl font-bold text-indigo-900">{{ admins }}</p></div>
         <div class="rounded-xl bg-white p-4 shadow-sm"><p class="text-xs text-gray-500">Mentors</p><p class="mt-1 text-2xl font-bold text-indigo-900">{{ mentors }}</p></div>
@@ -23,7 +26,9 @@
         <div class="rounded-xl bg-white p-4 shadow-sm"><p class="text-xs text-gray-500">Pending reflections</p><p class="mt-1 text-2xl font-bold text-indigo-900">{{ pending_reflections }}</p></div>
     </div>
 
-    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <section aria-label="Administration tools">
+    <h2 class="mb-3 text-lg font-bold text-slate-900">Administration tools</h2>
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <a href="{% url 'admin_users' %}" class="rounded-xl bg-white p-5 shadow-sm border border-indigo-100 hover:shadow-md transition">
             <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600">Users</p>
             <h2 class="mt-2 text-xl font-bold text-indigo-950">Manage access</h2>
@@ -31,13 +36,13 @@
         </a>
         <a href="{% url 'pod_list' %}" class="rounded-xl bg-white p-5 shadow-sm border border-indigo-100 hover:shadow-md transition">
             <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600">Pods</p>
-            <h2 class="mt-2 text-xl font-bold text-indigo-950">Create & manage</h2>
-            <p class="mt-2 text-sm text-gray-600">Create pods, add members, launch apprentices</p>
+            <h2 class="mt-2 text-xl font-bold text-indigo-950">Review pods</h2>
+            <p class="mt-2 text-sm text-gray-600">Inspect pod rosters and leadership</p>
         </a>
         <a href="{% url 'lesson_list' %}" class="rounded-xl bg-white p-5 shadow-sm border border-indigo-100 hover:shadow-md transition">
             <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600">Curriculum</p>
-            <h2 class="mt-2 text-xl font-bold text-indigo-950">Upload lessons</h2>
-            <p class="mt-2 text-sm text-gray-600">Teach master lessons to pods</p>
+            <h2 class="mt-2 text-xl font-bold text-indigo-950">Curriculum library</h2>
+            <p class="mt-2 text-sm text-gray-600">Review teaching resources and lessons</p>
         </a>
         <a href="{% url 'launch_apprentice' %}" class="rounded-xl bg-white p-5 shadow-sm border border-indigo-100 hover:shadow-md transition">
             <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600">Follow-up</p>
@@ -45,8 +50,9 @@
             <p class="mt-2 text-sm text-gray-600">Launch apprentice pods with oversight</p>
         </a>
     </div>
+    </section>
 
-    <div class="grid gap-6 lg:grid-cols-2">
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <section class="rounded-xl bg-white p-4 sm:p-6 shadow-sm">
             <h2 class="mb-4 font-bold text-indigo-950">Recent users</h2>
             <div class="space-y-3">

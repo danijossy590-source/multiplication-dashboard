@@ -11,7 +11,7 @@ class PodForm(forms.ModelForm):
         model = Pod
         fields = ['name', 'description']
 
-class AddMemberForm(forms.ModelForm):
+class AddMemberForm(forms.Form):
     """Form to add an existing registered user to a Pod. """
     username = forms.CharField(
         max_length=150,

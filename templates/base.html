@@ -15,26 +15,29 @@
         }
         form input:focus, form select:focus, form textarea:focus { outline: 2px solid #818cf8; border-color: #818cf8; }
         .errorlist { color: #b91c1c; font-size: 0.875rem; margin-bottom: 0.5rem; }
-        @media (max-width: 640px) { main { padding-top: 1rem !important; } }
+        @media (max-width: 640px) {
+            main { padding-top: 1rem !important; }
+            input, select, textarea, button, a { max-width: 100%; }
+        }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800 flex flex-col min-h-screen">
 
     <!-- Navigation Header -->
     <nav class="bg-indigo-900 text-white shadow-md">
-        <div class="max-w-6xl mx-auto px-4 py-3 flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
+        <div class="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <a href="{% url 'landing' %}" class="font-bold text-lg sm:text-xl tracking-wide">Camp of Gilgal | <span class="text-indigo-300">Multiply</span></a>
-            <div class="flex flex-wrap items-center gap-2 sm:gap-4">
+            <div class="flex flex-wrap items-center gap-2 sm:gap-3 lg:gap-4">
                 {% if user.is_authenticated %}
                     <span class="text-sm text-indigo-200">Hello, {{ user.username }}</span>
                     {% if user.is_staff or user.is_superuser %}
                         <a href="{% url 'admin_dashboard' %}" class="rounded bg-indigo-700 px-3 py-1 text-sm hover:bg-indigo-600">Admin Portal</a>
-                        <a href="{% url 'multiplication_dashboard' %}" class="hover:underline">Dashboard</a>
+                        <a href="{% url 'multiplication_dashboard' %}" class="hover:underline">Growth</a>
                         <a href="{% url 'pod_list' %}" class="hover:underline">Pods</a>
                         <a href="{% url 'lesson_list' %}" class="hover:underline">Curriculum</a>
                     {% else %}
-                        <a href="{% url 'profile' %}" class="hover:underline">My Profile</a>
                         <a href="{% url 'multiplication_dashboard' %}" class="hover:underline">Dashboard</a>
+                        <a href="{% url 'profile' %}" class="hover:underline">My Profile</a>
                         <a href="{% url 'pod_list' %}" class="hover:underline">Pods</a>
                         <a href="{% url 'lesson_list' %}" class="hover:underline">Curriculum</a>
                     {% endif %}
@@ -68,7 +71,7 @@
     </div>
 
     <!-- Main Dynamic Content -->
-    <main class="max-w-4xl mx-auto px-4 py-6 flex-grow w-full">
+    <main class="mx-auto w-full max-w-7xl flex-grow px-4 py-6">
         {% block content %}{% endblock %}
     </main>
 

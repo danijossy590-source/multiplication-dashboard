@@ -4,8 +4,71 @@ from unittest.mock import patch
 
 from django.core.management import call_command
 from django.test import TestCase
+from django.urls import reverse
 
 from accounts.models import CustomUser
+
+
+class AdminRolePreservationTests(TestCase):
+    def setUp(self):
+        self.admin = CustomUser.objects.create_user(
+            username="platform-admin",
+            password="Admin-password-1",
+            role="admin",
+            is_staff=True,
+            is_superuser=True,
+        )
+        self.client.force_login(self.admin)
+
+    def test_changing_admin_role_to_mentor_keeps_admin_access(self):
+        response = self.client.post(
+            reverse("admin_users"),
+            {"user_id": self.admin.pk, "action": "make_mentor"},
+            secure=True,
+        )
+
+        self.assertRedirects(response, reverse("admin_users"), fetch_redirect_response=False)
+        self.admin.refresh_from_db()
+        self.assertEqual(self.admin.role, "mentor")
+        self.assertTrue(self.admin.is_staff)
+        self.assertTrue(self.admin.is_superuser)
+
+    def test_changing_admin_role_to_mentee_keeps_admin_access(self):
+        self.client.post(
+            reverse("admin_users"),
+            {"user_id": self.admin.pk, "action": "make_mentee"},
+            secure=True,
+        )
+
+        self.admin.refresh_from_db()
+        self.assertEqual(self.admin.role, "mentee")
+        self.assertTrue(self.admin.is_staff)
+        self.assertTrue(self.admin.is_superuser)
+
+    def test_changing_regular_user_role_does_not_grant_admin_access(self):
+        user = CustomUser.objects.create_user(
+            username="regular-user",
+            password="User-password-1",
+            role="mentee",
+        )
+
+        self.client.post(
+            reverse("admin_users"),
+            {"user_id": user.pk, "action": "make_mentor"},
+            secure=True,
+        )
+
+        user.refresh_from_db()
+        self.assertEqual(user.role, "mentor")
+        self.assertFalse(user.is_staff)
+        self.assertFalse(user.is_superuser)
+
+    def test_admin_portal_uses_admin_workspace_not_member_actions(self):
+        response = self.client.get(reverse("admin_dashboard"), secure=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Platform operations")
+        self.assertNotContains(response, "Upload New Lesson")
 
 
 class EnsureAdminsCommandTests(TestCase):

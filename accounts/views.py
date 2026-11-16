@@ -57,12 +57,12 @@ def admin_users(request):
             user.is_superuser = True
         elif action == 'make_mentor':
             user.role = 'mentor'
-            user.is_staff = False
-            user.is_superuser = False
         elif action == 'make_mentee':
             user.role = 'mentee'
-            user.is_staff = False
-            user.is_superuser = False
+        else:
+            messages.error(request, "Choose a valid access role.")
+            return redirect('admin_users')
+
         user.save()
         notify_user(
             user,

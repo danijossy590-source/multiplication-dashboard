@@ -3,7 +3,7 @@
 {% block title %}Multiplication Dashboard | Multiply{% endblock %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 py-8 space-y-8">
+<div class="mx-auto max-w-7xl space-y-6 py-4 sm:space-y-8 sm:py-8">
 
     <!-- Header Section -->
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -11,15 +11,17 @@
             <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">Multiplication Dashboard</h1>
             <p class="text-sm text-slate-500 mt-1">Track your spiritual lineage, active pods, and generational impact.</p>
         </div>
-        <div class="flex items-center space-x-3">
+        {% if can_create_assignments %}
+        <div class="flex flex-wrap items-center gap-3">
             <a href="{% url 'assignment_create' %}" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs px-4 py-2.5 rounded-xl shadow-sm transition">
                 + Issue New Challenge
             </a>
         </div>
+        {% endif %}
     </div>
 
     <!-- Analytics Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 sm:gap-5">
         <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
             <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Disciples Footprint</span>
             <div class="text-3xl font-black text-slate-900 mt-2">{{ stats.total_footprint }}</div>
