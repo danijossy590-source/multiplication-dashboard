@@ -5,6 +5,12 @@ class Pod(models.Model):
     """
     Represents an intimate small group (Pod) for discipleship.
     """
+    STATUS_CHOICES = (
+        ('active', 'Active'),
+        ('paused', 'Paused'),
+        ('archived', 'Archived'),
+    )
+
     name = models.CharField(max_length=150, help_text="e.g., Faith Walk Pod Alpha")
     description = models.TextField(blank=True, null=True, help_text="Brief purpose or focus of this pod")
     leader = models.ForeignKey(
@@ -13,6 +19,7 @@ class Pod(models.Model):
         related_name='leading_pods',
         help_text="The primary leader/mentor of this Pod"
     )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

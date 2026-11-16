@@ -5,7 +5,7 @@ from django.utils import timezone
 from .models import Assignment, Reflection
 from .forms import AssignmentForm, ReflectionForm, MentorFeedbackForm
 from django.http import JsonResponse
-from accounts.utils import get_multiplication_stats, build_discipleship_tree
+from accounts.utils import get_multiplication_stats, build_discipleship_tree, notify_user
 from pods.models import Pod
 
 @login_required
@@ -18,9 +18,13 @@ def assignment_create_view(request):
         if form.is_valid():
             assignment = form.save(commit=False)
             assignment.created_by = request.user
+            assignment.status = 'published'
             assignment.save()
+            if assignment.pod:
+                for member in assignment.pod.memberships.select_related('user').all():
+                    notify_user(member.user, 'New challenge assigned', f"A new challenge '{assignment.title}' was shared in {assignment.pod.name}.", '/growth/dashboard/')
             messages.success(request, f"Challenge '{assignment.title}' published successfully!")
-            return redirect('growth_dashboard')
+            return redirect('multiplication_dashboard')
     else:
         form = AssignmentForm()
 
@@ -43,9 +47,10 @@ def reflection_submit_view(request, assignment_id):
             reflection = form.save(commit=False)
             reflection.assignment = assignment
             reflection.user = request.user
+            reflection.status = 'pending'
             reflection.save()
             messages.success(request, "Your reflection has been submitted successfully!")
-            return redirect('growth_dashboard')
+            return redirect('multiplication_dashboard')
     else:
         form = ReflectionForm(instance=existing_reflection)
 
@@ -77,7 +82,14 @@ def reflection_detail_view(request, reflection_id):
         if feedback_form.is_valid():
             updated_reflection = feedback_form.save(commit=False)
             updated_reflection.reviewed_at = timezone.now()
+            updated_reflection.status = 'approved' if updated_reflection.is_approved else 'rejected'
             updated_reflection.save()
+            notify_user(
+                reflection.user,
+                'Reflection reviewed',
+                f"Your reflection for '{reflection.assignment.title}' was {'approved' if updated_reflection.is_approved else 'rejected'}.",
+                '/profile/'
+            )
             messages.success(request, "Feedback and review saved successfully!")
             return redirect('reflection_detail', reflection_id=reflection.id)
     else:

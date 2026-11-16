@@ -7,4 +7,6 @@ urlpatterns = [
     path('login/', views.RoleBasedLoginView.as_view(), name='login'),
     path('logout/', auth_views.LogoutView.as_view(next_page='landing'), name='logout'),
     path('profile/', views.profile_view, name='profile'),
+    path('notifications/', views.notifications_view, name='notifications'),
+    path('notifications/<int:notification_id>/read/', views.mark_notification_read, name='notification_read'),
 ]

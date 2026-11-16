@@ -1,29 +1,42 @@
 from django.contrib.auth import get_user_model
 from pods.models import Pod
 from growth.models import Reflection
+from .models import Mentorship, Notification
 
 User = get_user_model()
+
+
+def notify_user(user, title, message, related_url=''):
+    if not user or not getattr(user, 'is_authenticated', False):
+        return None
+    return Notification.objects.create(
+        user=user,
+        title=title,
+        message=message,
+        related_url=related_url,
+    )
+
 
 def build_discipleship_tree(user, depth=1, max_depth=5):
     """
     Recursively builds a tree structure of spiritual progeny up to max_depth.
     Returns a dictionary structure suitable for visual rendering.
     """
+    if not user or not getattr(user, 'is_authenticated', False):
+        return []
     if depth > max_depth:
         return []
 
-    # Retrieve mentees where this user is assigned as mentor/leader
-    # Assumes a Mentorship model or direct mentor field in User/Pod
-    direct_mentees = User.objects.filter(mentorships_as_mentee__mentor=user, mentorships_as_mentee__is_active=True).distinct()
+    direct_mentees = User.objects.filter(mentorship_mentees__mentor=user).distinct()
 
     tree_nodes = []
     for mentee in direct_mentees:
         children = build_discipleship_tree(mentee, depth + 1, max_depth)
-        
-        # Calculate individual stats
+
         completed_challenges = Reflection.objects.filter(user=mentee, is_approved=True).count()
         led_pods_count = Pod.objects.filter(leader=mentee).count()
 
+        total_progeny = len(children) + sum(child.get('total_progeny', 0) for child in children)
         node = {
             'id': mentee.id,
             'name': mentee.get_full_name() or mentee.username,
@@ -32,7 +45,7 @@ def build_discipleship_tree(user, depth=1, max_depth=5):
             'completed_challenges': completed_challenges,
             'is_leader': led_pods_count > 0,
             'children': children,
-            'total_progeny': len(children) + sum(c['total_progeny'] for c in children)
+            'total_progeny': total_progeny,
         }
         tree_nodes.append(node)
 
@@ -43,8 +56,17 @@ def get_multiplication_stats(user):
     """
     Computes top-level dashboard metrics for a leader.
     """
+    if not user or not getattr(user, 'is_authenticated', False):
+        return {
+            'total_footprint': 0,
+            'gen_1_count': 0,
+            'gen_2_plus_count': 0,
+            'max_depth': 0,
+            'tree': [],
+        }
+
     tree = build_discipleship_tree(user)
-    
+
     def count_by_generation(nodes, current_gen=1, stats_dict=None):
         if stats_dict is None:
             stats_dict = {}
@@ -62,36 +84,16 @@ def get_multiplication_stats(user):
         'gen_1_count': gen_counts.get(1, 0),
         'gen_2_plus_count': total_footprint - gen_counts.get(1, 0),
         'max_depth': max_gen_depth,
-        'tree': tree
+        'tree': tree,
     }
-from django.db import connection
+
 
 def get_discipleship_tree_cte(leader_id):
     """
-    Fetches all multi-generational descendants in 1 single database round-trip
-    using PostgreSQL Recursive CTEs.
+    Compatibility helper for callers expecting a tree structure from a leader.
     """
-    query = """
-    WITH RECURSIVE discipleship_cte AS (
-        -- Base Case: Direct (Gen 1) Mentees
-        SELECT 
-            mentee_id, mentor_id, 1 AS generation
-        FROM pods_mentorship
-        WHERE mentor_id = %s AND is_active = TRUE
-
-        UNION ALL
-
-        -- Recursive Case: Sub-generations (Gen 2, Gen 3, etc.)
-        SELECT 
-            m.mentee_id, m.mentor_id, c.generation + 1
-        FROM pods_mentorship m
-        INNER JOIN discipleship_cte c ON m.mentor_id = c.mentee_id
-        WHERE m.is_active = TRUE
-    )
-    SELECT * FROM discipleship_cte;
-    """
-    with connection.cursor() as cursor:
-        cursor.execute(query, [leader_id])
-        rows = cursor.fetchall()
-        
-    return rows
+    try:
+        leader = User.objects.get(pk=leader_id)
+    except User.DoesNotExist:
+        return []
+    return build_discipleship_tree(leader)

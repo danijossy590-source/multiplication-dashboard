@@ -5,15 +5,33 @@
 {% block content %}
 <div class="space-y-6">
     <div class="bg-white p-6 rounded-lg shadow-md">
-        <h2 class="text-2xl font-bold text-gray-800 mb-2">Welcome, {{ user.get_full_name|default:user.username }}</h2>
-        <p class="text-gray-600"><strong>Username:</strong> {{ user.username }}</p>
-        <p class="text-gray-600"><strong>Email:</strong> {{ user.email }}</p>
-        <p class="text-gray-600"><strong>Bio:</strong> {{ user.bio|default:"No bio provided yet." }}</p>
+        <div class="flex items-center justify-between gap-4">
+            <div>
+                <h2 class="text-2xl font-bold text-gray-800 mb-2">Welcome, {{ user.get_full_name|default:user.username }}</h2>
+                <p class="text-gray-600"><strong>Username:</strong> {{ user.username }}</p>
+                <p class="text-gray-600"><strong>Email:</strong> {{ user.email }}</p>
+                <p class="text-gray-600"><strong>Bio:</strong> {{ user.bio|default:"No bio provided yet." }}</p>
+            </div>
+            <a href="{% url 'notifications' %}" class="rounded bg-indigo-700 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-800">
+                Notifications {% if unread_notifications %}<span class="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] text-white">{{ unread_notifications }}</span>{% endif %}
+            </a>
+        </div>
     </div>
 
-    <!-- Relationships Overview -->
+    {% if recent_notifications %}
+    <div class="bg-white p-4 rounded-lg shadow-sm border border-indigo-100">
+        <h3 class="text-lg font-bold text-indigo-900 mb-3">Recent alerts</h3>
+        <ul class="space-y-2">
+            {% for item in recent_notifications %}
+                <li class="rounded bg-indigo-50 px-3 py-2 text-sm text-indigo-900">
+                    <strong>{{ item.title }}</strong> — {{ item.message }}
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <!-- Mentors -->
         <div class="bg-white p-6 rounded-lg shadow-md">
             <h3 class="text-lg font-bold text-indigo-900 mb-3">My Mentors</h3>
             {% if mentors %}
@@ -27,13 +45,12 @@
             {% endif %}
         </div>
 
-        <!-- Disciples -->
         <div class="bg-white p-6 rounded-lg shadow-md">
-            <h3 class="text-lg font-bold text-indigo-900 mb-3">My Disciples</h3>
-            {% if disciples %}
+            <h3 class="text-lg font-bold text-indigo-900 mb-3">My Mentees</h3>
+            {% if mentees %}
                 <ul class="divide-y">
-                {% for d in disciples %}
-                    <li class="py-2 text-sm">{{ d.disciple.get_full_name|default:d.disciple.username }}</li>
+                {% for d in mentees %}
+                    <li class="py-2 text-sm">{{ d.mentee.get_full_name|default:d.mentee.username }}</li>
                 {% endfor %}
                 </ul>
             {% else %}

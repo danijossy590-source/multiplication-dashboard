@@ -21,6 +21,8 @@ class ReflectionForm(forms.ModelForm):
     """
     Form for disciples to submit written text and upload audio files.
     """
+    MAX_FILE_SIZE = 10 * 1024 * 1024
+
     class Meta:
         model = Reflection
         fields = ['written_content', 'audio_reflection']
@@ -35,6 +37,16 @@ class ReflectionForm(forms.ModelForm):
                 'accept': 'audio/*'
             }),
         }
+
+    def clean_audio_reflection(self):
+        audio_reflection = self.cleaned_data.get('audio_reflection')
+        if not audio_reflection:
+            return audio_reflection
+        if audio_reflection.size > self.MAX_FILE_SIZE:
+            raise forms.ValidationError('Audio reflection must be 10MB or smaller.')
+        if audio_reflection.content_type and audio_reflection.content_type.split('/')[0] != 'audio' and not audio_reflection.name.lower().endswith(('.mp3', '.wav', '.m4a')):
+            raise forms.ValidationError('Only audio files are allowed for reflections.')
+        return audio_reflection
 
 
 class MentorFeedbackForm(forms.ModelForm):

@@ -4,7 +4,8 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.views import LoginView
 from django.contrib import messages
 from .forms import CustomUserCreationForm, CustomUserChangeForm
-from .models import CustomUser, Mentorship
+from .models import CustomUser, Mentorship, Notification
+from accounts.utils import notify_user
 from pods.models import Pod
 from curriculum.models import Lesson
 from growth.models import Assignment, Reflection
@@ -39,6 +40,7 @@ def admin_dashboard(request):
         'recent_reflections': Reflection.objects.select_related(
             'user', 'assignment'
         ).order_by('-submitted_at')[:6],
+        'unread_notifications': Notification.objects.filter(user=request.user, is_read=False).count(),
     }
     return render(request, 'accounts/admin_dashboard.html', context)
 
@@ -48,6 +50,7 @@ def admin_users(request):
     if request.method == 'POST':
         user = get_object_or_404(CustomUser, pk=request.POST.get('user_id'))
         action = request.POST.get('action')
+        previous_role = user.role
         if action == 'make_admin':
             user.role = 'admin'
             user.is_staff = True
@@ -61,6 +64,12 @@ def admin_users(request):
             user.is_staff = False
             user.is_superuser = False
         user.save()
+        notify_user(
+            user,
+            'Access updated',
+            f"Your role changed from {previous_role} to {user.role}.",
+            '/profile/'
+        )
         messages.success(request, f"{user.username} was updated.")
         return redirect('admin_users')
 
@@ -85,6 +94,12 @@ def register_view(request):
         if form.is_valid():
             user = form.save()
             login(request, user)
+            notify_user(
+                user,
+                'Welcome to Multiply',
+                'Your account is ready. Start by joining a pod and completing your first lesson.',
+                '/profile/'
+            )
             messages.success(
                 request, 
                 f"Welcome to Multiply, {user.username}! Your account was created successfully."
@@ -110,5 +125,22 @@ def profile_view(request):
         'user': request.user,
         'mentors': mentors,
         'mentees': mentees,
+        'recent_notifications': request.user.notifications.filter(is_read=False)[:5],
     }
     return render(request, 'accounts/profile.html', context)
+
+
+@login_required
+def notifications_view(request):
+    notifications = request.user.notifications.all()
+    return render(request, 'accounts/notifications.html', {'notifications': notifications})
+
+
+@login_required
+def mark_notification_read(request, notification_id):
+    notification = get_object_or_404(Notification, pk=notification_id, user=request.user)
+    notification.is_read = True
+    notification.save()
+    if notification.related_url:
+        return redirect(notification.related_url)
+    return redirect('notifications')

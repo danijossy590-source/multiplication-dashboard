@@ -7,6 +7,13 @@ class Assignment(models.Model):
     """
     Practical real-world challenge or action item derived from a Lesson or Pod.
     """
+    STATUS_CHOICES = (
+        ('draft', 'Draft'),
+        ('published', 'Published'),
+        ('overdue', 'Overdue'),
+        ('completed', 'Completed'),
+    )
+
     lesson = models.ForeignKey(
         Lesson, 
         on_delete=models.CASCADE, 
@@ -26,6 +33,7 @@ class Assignment(models.Model):
     title = models.CharField(max_length=200)
     instruction = models.TextField(help_text="Detailed practical challenge instructions for disciples.")
     due_date = models.DateField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='published')
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -43,6 +51,12 @@ class Reflection(models.Model):
     A disciple's submission responding to an Assignment.
     Supports written text and audio recordings, with mentor review fields.
     """
+    STATUS_CHOICES = (
+        ('pending', 'Pending review'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    )
+
     assignment = models.ForeignKey(
         Assignment, 
         on_delete=models.CASCADE, 
@@ -67,6 +81,7 @@ class Reflection(models.Model):
         null=True,
         help_text="Constructive feedback from the leader or mentor."
     )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     is_approved = models.BooleanField(
         default=False,
         help_text="Mark as approved when the mentor verifies the completion of the challenge."

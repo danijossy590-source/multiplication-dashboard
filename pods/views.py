@@ -2,10 +2,25 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth import get_user_model
+from accounts.utils import notify_user
 from .models import Pod, PodMember, ApprenticeOversight
 from .forms import PodForm, AddMemberForm, LaunchApprenticePodForm
 
 User = get_user_model()
+
+
+def user_has_pod_access(user, pod):
+    if not user.is_authenticated:
+        return False
+    if user.is_staff or user.is_superuser:
+        return True
+    if pod.leader_id == user.id:
+        return True
+    if PodMember.objects.filter(pod=pod, user=user).exists():
+        return True
+    if ApprenticeOversight.objects.filter(apprentice_pod=pod, mentor=user).exists():
+        return True
+    return False
 
 @login_required
 def pod_list_view(request):
@@ -41,6 +56,7 @@ def pod_create_view(request):
             
             # Automatically create PodMember record for the leader
             PodMember.objects.create(pod=pod, user=request.user, role='LEADER')
+            notify_user(request.user, 'Pod created', f"You created the pod '{pod.name}'.", f'/pods/{pod.id}/')
             messages.success(request, f"Pod '{pod.name}' created successfully!")
             return redirect('pod_detail', pod_id=pod.id)
     else:
@@ -62,7 +78,7 @@ def pod_detail_view(request, pod_id):
     is_overseers = ApprenticeOversight.objects.filter(apprentice_pod=pod, mentor=request.user).exists()
 
     # Access security check
-    if not (is_leader or is_member or is_overseers or request.user.is_staff):
+    if not user_has_pod_access(request.user, pod):
         messages.error(request, "You do not have permission to view this Pod.")
         return redirect('pod_list')
 
@@ -110,11 +126,20 @@ def launch_apprentice_pod_view(request):
             new_pod_name = form.cleaned_data['new_pod_name']
             new_pod_desc = form.cleaned_data['new_pod_description']
 
+            if apprentice_user == request.user:
+                messages.error(request, "You cannot appoint yourself as an apprentice.")
+                return redirect('launch_apprentice_pod')
+
+            if not PodMember.objects.filter(pod__leader=request.user, user=apprentice_user).exists():
+                messages.error(request, "You can only appoint disciples from a pod you lead.")
+                return redirect('launch_apprentice_pod')
+
             # 1. Create new Pod with apprentice as primary leader
             new_pod = Pod.objects.create(
                 name=new_pod_name,
                 description=new_pod_desc,
-                leader=apprentice_user
+                leader=apprentice_user,
+                status='active'
             )
 
             # 2. Set apprentice as LEADER in the new pod
@@ -128,6 +153,9 @@ def launch_apprentice_pod_view(request):
 
             # 4. Update apprentice role in mentor's pod to 'APPRENTICE' if not already set
             PodMember.objects.filter(user=apprentice_user, pod__leader=request.user).update(role='APPRENTICE')
+
+            notify_user(request.user, 'Apprentice pod launched', f"You launched '{new_pod.name}' and now oversee {apprentice_user.username}.", '/pods/')
+            notify_user(apprentice_user, 'Leadership assigned', f"You were appointed leader of '{new_pod.name}' and now have a mentor oversight relationship.", '/pods/')
 
             messages.success(
                 request, 

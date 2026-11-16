@@ -13,18 +13,25 @@ def lesson_list_view(request):
     1. Master Curriculum Templates.
     2. Lessons specific to Pods the user participates in or leads.
     """
+    search_query = request.GET.get('q', '').strip()
+
     master_lessons = Lesson.objects.filter(is_master_template=True).order_by('-created_at')
-    
+    if search_query:
+        master_lessons = master_lessons.filter(title__icontains=search_query)
+
     # Retrieve all Pod IDs where the user is either a Leader or Member
     leading_pod_ids = request.user.leading_pods.values_list('id', flat=True)
     membership_pod_ids = request.user.pod_memberships.values_list('pod_id', flat=True)
     all_user_pod_ids = list(set(list(leading_pod_ids) + list(membership_pod_ids)))
 
     pod_lessons = Lesson.objects.filter(pod_id__in=all_user_pod_ids).select_related('pod', 'created_by').order_by('-created_at')
+    if search_query:
+        pod_lessons = pod_lessons.filter(title__icontains=search_query)
 
     context = {
         'master_lessons': master_lessons,
         'pod_lessons': pod_lessons,
+        'search_query': search_query,
     }
     return render(request, 'curriculum/lesson_list.html', context)
 
@@ -52,6 +59,10 @@ def lesson_create_view(request):
     """
     Allows instructors or leaders to upload new lessons and attached media files.
     """
+    if not (request.user.is_staff or request.user.leading_pods.exists()):
+        messages.error(request, "Only staff or pod leaders can create curriculum lessons.")
+        return redirect('lesson_list')
+
     if request.method == 'POST':
         # MUST pass request.FILES to handle uploaded audio/PDF files
         form = LessonForm(request.POST, request.FILES)
