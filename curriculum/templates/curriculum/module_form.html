@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+
+{% block title %}Add Module | Multiply{% endblock %}
+
+{% block content %}
+<section class="mx-auto max-w-2xl rounded-xl bg-white p-6 shadow sm:p-8">
+    <p class="text-sm font-semibold text-indigo-700">{{ course.title }}</p>
+    <h1 class="mt-1 text-2xl font-bold text-indigo-950">Add a Module</h1>
+    <p class="mt-2 text-sm text-gray-600">Use the order number to set where this module appears in the course.</p>
+    <form method="post" class="mt-6 space-y-4">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit" class="rounded-lg bg-indigo-800 px-5 py-2.5 font-semibold text-white hover:bg-indigo-900">Add module</button>
+    </form>
+</section>
+{% endblock %}

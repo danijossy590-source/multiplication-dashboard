@@ -12,6 +12,12 @@ services:
       - POSTGRES_PASSWORD=${DB_PASSWORD:-secure_password_here}
     restart: always
 
+  ollama:
+    image: ollama/ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+
   web:
     build: .
     container_name: multiply_web
@@ -25,8 +31,12 @@ services:
       - media_volume:/app/media
     env_file:
       - .env
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:1.5b}
     depends_on:
       - db
+      - ollama
     restart: always
 
   nginx:
@@ -47,3 +57,4 @@ volumes:
   postgres_data:
   static_volume:
   media_volume:
+  ollama_data:

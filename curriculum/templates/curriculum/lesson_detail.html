@@ -3,11 +3,34 @@
 {% block title %}{{ lesson.title }} | Multiply{% endblock %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto space-y-6">
+<div class="{% if course %}mx-auto grid max-w-7xl grid-cols-1 gap-6 lg:grid-cols-4{% else %}mx-auto max-w-4xl space-y-6{% endif %}">
+    {% if course %}
+    <aside class="h-fit rounded-xl bg-white p-4 shadow-sm lg:sticky lg:top-4">
+        <a href="{% url 'course_detail' course.id %}" class="text-sm font-semibold text-indigo-700 hover:underline">&larr; Back to course</a>
+        <h2 class="mt-3 text-lg font-bold text-gray-900">{{ course.title }}</h2>
+        <ol class="mt-4 space-y-4">
+            {% for module in course.modules.all %}
+            <li>
+                <h3 class="text-xs font-bold uppercase tracking-wider text-gray-500">{{ module.title }}</h3>
+                <ul class="mt-2 space-y-2">
+                    {% for item in module.lessons.all %}
+                    <li class="flex items-start gap-2 text-sm">
+                        {% if item.id in completed_ids %}<span class="text-emerald-700">&#10003;</span>{% else %}<span class="text-gray-400">&#9675;</span>{% endif %}
+                        <a href="{% url 'lesson_detail' item.id %}" class="{% if item.id == lesson.id %}font-bold text-indigo-900{% else %}text-indigo-700 hover:underline{% endif %}">{{ item.title }}</a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </li>
+            {% endfor %}
+        </ol>
+    </aside>
+    <div class="space-y-6 lg:col-span-3">
+    {% endif %}
     <!-- Header Card -->
     <div class="bg-white p-6 rounded-lg shadow-md border-t-4 border-indigo-900">
         <div class="flex flex-col items-start justify-between gap-4 sm:flex-row">
             <div class="min-w-0">
+                {% if course %}<a href="{% url 'course_detail' course.id %}" class="text-sm font-semibold text-indigo-700 hover:underline">{{ course.title }} / {{ lesson.module.title }}</a>{% endif %}
                 <span class="text-xs font-bold uppercase tracking-wider text-indigo-700">
                     {% if lesson.is_master_template %}Master Curriculum{% else %}Pod Edition ({{ lesson.pod.name }}){% endif %}
                 </span>
@@ -58,12 +81,47 @@
     {% endif %}
 
     <!-- Main Lesson Text Content -->
-    <div class="bg-white p-8 rounded-lg shadow-md space-y-4">
-        <h2 class="text-xl font-bold text-gray-800 border-b pb-2">Lesson Material & Notes</h2>
-        <div class="prose max-w-none text-gray-800 leading-relaxed whitespace-pre-line">
-            {{ lesson.content }}
-        </div>
+    <div class="space-y-5">
+        <h2 class="text-xl font-bold text-gray-800">Lesson Material &amp; Notes</h2>
+        {% if lesson_structure.is_structured %}
+            {% for section in lesson_structure.sections %}
+            <section class="rounded-lg bg-white p-6 shadow-sm">
+                <h3 class="border-b pb-2 text-lg font-bold text-indigo-900">{{ section.heading }}</h3>
+                <div class="mt-3 leading-relaxed text-gray-800 whitespace-pre-line">{{ section.body }}</div>
+            </section>
+            {% endfor %}
+        {% else %}
+            <section class="rounded-lg bg-white p-8 shadow-md">
+                <div class="leading-relaxed text-gray-800 whitespace-pre-line">{{ lesson.content }}</div>
+            </section>
+        {% endif %}
     </div>
+
+    {% if lesson.discussion_questions %}
+    <section class="rounded-lg border border-indigo-100 bg-indigo-50 p-6">
+        <h2 class="text-lg font-bold text-indigo-950">Discussion Questions</h2>
+        <div class="mt-3 whitespace-pre-line text-gray-800">{{ lesson.discussion_questions }}</div>
+    </section>
+    {% endif %}
+
+    {% if course %}
+    <section class="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-white p-4 shadow-sm">
+        <div>
+            {% if previous_lesson %}<a href="{% url 'lesson_detail' previous_lesson.id %}" class="font-semibold text-indigo-700 hover:underline">&larr; Previous lesson</a>{% endif %}
+        </div>
+        <form method="post" action="{% url 'lesson_complete' lesson.id %}">
+            {% csrf_token %}
+            {% if is_complete %}
+            <span class="rounded-full bg-emerald-100 px-4 py-2 text-sm font-bold text-emerald-800">Lesson completed</span>
+            {% else %}
+            <button type="submit" class="rounded-lg bg-emerald-700 px-4 py-2 font-semibold text-white hover:bg-emerald-800">Mark lesson complete</button>
+            {% endif %}
+        </form>
+        <div>
+            {% if next_lesson %}<a href="{% url 'lesson_detail' next_lesson.id %}" class="font-semibold text-indigo-700 hover:underline">Next lesson &rarr;</a>{% endif %}
+        </div>
+    </section>
+    {% endif %}
 
     <!-- Supplementary PDF Guide -->
     {% if lesson.pdf_resource %}
@@ -81,6 +139,7 @@
         </div>
     {% endif %}
 </div>
+{% if course %}</div>{% endif %}
 
 <!-- Custom Audio Speed Control Script -->
 <script>

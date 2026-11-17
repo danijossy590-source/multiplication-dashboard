@@ -1,0 +1,122 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ course.title }} | Multiply{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <header class="rounded-2xl bg-gradient-to-br from-indigo-950 to-indigo-800 p-6 text-white shadow sm:p-9">
+        <p class="text-sm font-semibold uppercase tracking-widest text-indigo-200">
+            {% if course.pod %}{{ course.pod.name }} course{% else %}Camp of Gilgal course{% endif %}
+        </p>
+        <h1 class="mt-2 text-3xl font-bold sm:text-4xl">{{ course.title }}</h1>
+        {% if course.description %}<p class="mt-3 max-w-3xl leading-7 text-indigo-100">{{ course.description }}</p>{% endif %}
+        <div class="mt-6 max-w-xl">
+            <div class="flex justify-between text-sm"><span>Course progress</span><span>{{ completed_count }} / {{ total_lessons }} lessons</span></div>
+            <div class="mt-2 h-3 overflow-hidden rounded-full bg-white/20" role="progressbar" aria-valuenow="{{ progress_percent }}" aria-valuemin="0" aria-valuemax="100" aria-label="Course progress">
+                <div class="h-full rounded-full bg-emerald-300" style="width: {{ progress_percent }}%"></div>
+            </div>
+            <p class="mt-1 text-sm text-indigo-100">{{ progress_percent }}% complete</p>
+        </div>
+        {% if certificate %}
+        <a href="{% url 'certificate' course.id %}" class="mt-5 inline-block rounded-lg bg-emerald-300 px-4 py-2 font-bold text-emerald-950 hover:bg-emerald-200">View your certificate</a>
+        {% endif %}
+    </header>
+
+    {% if can_manage %}
+    <div class="flex flex-wrap gap-3">
+        <a href="{% url 'module_create' course.id %}" class="rounded-lg bg-indigo-800 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-900">+ Add module</a>
+        <a href="{% url 'lesson_create' %}" class="rounded-lg border border-indigo-800 px-4 py-2 text-sm font-semibold text-indigo-800 hover:bg-indigo-50">+ Add lesson</a>
+    </div>
+    {% endif %}
+
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <aside class="space-y-4 lg:col-span-1">
+            <div class="rounded-xl bg-white p-5 shadow-sm">
+                <h2 class="text-lg font-bold text-gray-900">Course contents</h2>
+                <p class="mt-1 text-sm text-gray-500">{{ modules|length }} modules · {{ total_lessons }} lessons</p>
+                <ol class="mt-4 space-y-4">
+                    {% for module in modules %}
+                    <li class="rounded-lg border border-gray-200 p-3">
+                        <div class="flex items-start justify-between gap-2">
+                            <h3 class="font-bold text-indigo-950">{{ forloop.counter }}. {{ module.title }}</h3>
+                            <span class="shrink-0 text-xs text-gray-500">{{ module.completed_count }}/{{ module.lesson_items|length }}</span>
+                        </div>
+                        {% if module.description %}<p class="mt-1 text-xs text-gray-600">{{ module.description }}</p>{% endif %}
+                        <ol class="mt-3 space-y-2">
+                            {% for lesson in module.lesson_items %}
+                            <li class="flex items-start gap-2 text-sm">
+                                {% if lesson.id in completed_ids %}
+                                <span class="text-emerald-700" aria-label="Completed">&#10003;</span>
+                                {% else %}
+                                <span class="text-gray-400" aria-label="Not completed">&#9675;</span>
+                                {% endif %}
+                                <a class="text-indigo-700 hover:underline" href="{% url 'lesson_detail' lesson.id %}">{{ lesson.title }}</a>
+                            </li>
+                            {% empty %}
+                            <li class="text-sm italic text-gray-500">No lessons in this module yet.</li>
+                            {% endfor %}
+                        </ol>
+                        {% if module.quiz %}
+                        <div class="mt-3 border-t pt-3">
+                            {% if module.quiz_passed %}
+                            <span class="text-sm font-semibold text-emerald-700">Quiz passed</span>
+                            {% else %}
+                            <a class="text-sm font-semibold text-indigo-700 hover:underline" href="{% url 'quiz' module.id %}">Take module quiz</a>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        {% if can_manage %}
+                        <div class="mt-3 flex flex-wrap gap-3 border-t pt-3 text-xs">
+                            <a class="font-semibold text-indigo-700 hover:underline" href="{% url 'lesson_create' %}?module={{ module.id }}">Add lesson to module</a>
+                            <a class="font-semibold text-indigo-700 hover:underline" href="{% url 'quiz_manage' module.id %}">{% if module.quiz %}Manage quiz{% else %}Set up quiz{% endif %}</a>
+                        </div>
+                        {% endif %}
+                    </li>
+                    {% empty %}
+                    <li class="text-sm italic text-gray-500">This course has no modules yet.</li>
+                    {% endfor %}
+                </ol>
+            </div>
+        </aside>
+
+        <section class="space-y-4 lg:col-span-2">
+            <div class="rounded-xl bg-white p-6 shadow-sm">
+                <h2 class="text-xl font-bold text-gray-900">Your learning path</h2>
+                <p class="mt-2 leading-7 text-gray-600">Work through the modules in order. Open each lesson, mark it complete when you finish, and pass the module quizzes to earn your course certificate.</p>
+            </div>
+            {% for module in modules %}
+            <article class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                <p class="text-xs font-bold uppercase tracking-wider text-indigo-600">Module {{ forloop.counter }}</p>
+                <h3 class="mt-1 text-xl font-bold text-gray-900">{{ module.title }}</h3>
+                {% if module.description %}<p class="mt-2 text-sm text-gray-600">{{ module.description }}</p>{% endif %}
+                <div class="mt-4 divide-y">
+                    {% for lesson in module.lesson_items %}
+                    <div class="flex flex-wrap items-center justify-between gap-3 py-3">
+                        <div>
+                            <a href="{% url 'lesson_detail' lesson.id %}" class="font-semibold text-indigo-800 hover:underline">{{ lesson.title }}</a>
+                            {% if lesson.description %}<p class="mt-1 text-sm text-gray-500">{{ lesson.description|truncatewords:20 }}</p>{% endif %}
+                        </div>
+                        {% if lesson.id in completed_ids %}
+                        <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">Completed</span>
+                        {% else %}
+                        <a href="{% url 'lesson_detail' lesson.id %}" class="rounded-lg bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-800 hover:bg-indigo-100">Start lesson</a>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                    {% if module.quiz %}
+                    <div class="flex items-center justify-between gap-3 py-3">
+                        <span class="font-semibold text-gray-800">{{ module.quiz.title }}</span>
+                        {% if module.quiz_passed %}
+                        <span class="text-sm font-bold text-emerald-700">Passed</span>
+                        {% else %}
+                        <a href="{% url 'quiz' module.id %}" class="rounded-lg bg-emerald-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-emerald-800">Take quiz</a>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </article>
+            {% endfor %}
+        </section>
+    </div>
+</div>
+{% endblock %}

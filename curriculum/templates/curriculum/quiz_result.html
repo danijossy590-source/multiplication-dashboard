@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+
+{% block title %}Quiz Result | Multiply{% endblock %}
+
+{% block content %}
+<section class="mx-auto max-w-2xl rounded-2xl bg-white p-8 text-center shadow">
+    <p class="text-sm font-semibold uppercase tracking-widest text-indigo-600">{{ attempt.quiz.module.course.title }}</p>
+    <h1 class="mt-3 text-3xl font-bold {% if attempt.passed %}text-emerald-800{% else %}text-amber-800{% endif %}">
+        {% if attempt.passed %}Quiz passed!{% else %}Keep learning{% endif %}
+    </h1>
+    <p class="mt-4 text-5xl font-bold text-indigo-950">{{ attempt.score }}%</p>
+    <p class="mt-2 text-gray-600">Pass mark: {{ attempt.quiz.passing_score }}%</p>
+    <div class="mt-6 flex flex-wrap justify-center gap-3">
+        {% if not attempt.passed %}<a href="{% url 'quiz' attempt.quiz.module.id %}" class="rounded-lg bg-indigo-800 px-4 py-2 font-semibold text-white">Try again</a>{% endif %}
+        <a href="{% url 'course_detail' attempt.quiz.module.course.id %}" class="rounded-lg border border-indigo-800 px-4 py-2 font-semibold text-indigo-800">Return to course</a>
+    </div>
+</section>
+{% endblock %}

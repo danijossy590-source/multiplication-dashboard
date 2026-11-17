@@ -1,9 +1,38 @@
 
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required
+import uuid
+
 from django.contrib import messages
-from .models import Lesson
-from .forms import LessonForm, TeachThisForm
+from django.contrib.auth.decorators import login_required
+from django.core.files.base import ContentFile
+from django.db import transaction
+from django.db.models import Q
+from django.http import HttpResponseForbidden, JsonResponse
+from django.views.decorators.http import require_POST
+from django.shortcuts import render, redirect, get_object_or_404
+from django.utils.text import slugify
+
+from .documents import DocumentConversionError, convert_word_document
+from .ai import LessonAIError, generate_lesson_suggestions
+from .models import (
+    Course,
+    CourseCertificate,
+    Lesson,
+    LessonProgress,
+    Module,
+    ModuleQuiz,
+    QuizAttempt,
+    QuizChoice,
+    QuizQuestion,
+)
+from .forms import (
+    CourseForm,
+    LessonForm,
+    ModuleForm,
+    QuizQuestionForm,
+    QuizSettingsForm,
+    TeachThisForm,
+)
+from .structure import structure_lesson
 from pods.models import Pod
 
 @login_required
@@ -16,6 +45,7 @@ def lesson_list_view(request):
     search_query = request.GET.get('q', '').strip()
 
     master_lessons = Lesson.objects.filter(is_master_template=True).order_by('-created_at')
+    master_lessons = master_lessons.filter(module__isnull=True)
     if search_query:
         master_lessons = master_lessons.filter(title__icontains=search_query)
 
@@ -24,15 +54,49 @@ def lesson_list_view(request):
     membership_pod_ids = request.user.pod_memberships.values_list('pod_id', flat=True)
     all_user_pod_ids = list(set(list(leading_pod_ids) + list(membership_pod_ids)))
 
-    pod_lessons = Lesson.objects.filter(pod_id__in=all_user_pod_ids).select_related('pod', 'created_by').order_by('-created_at')
+    pod_lessons = Lesson.objects.filter(
+        pod_id__in=all_user_pod_ids,
+        module__isnull=True,
+    ).select_related('pod', 'created_by').order_by('-created_at')
     if search_query:
         pod_lessons = pod_lessons.filter(title__icontains=search_query)
+
+    available_courses = Course.objects.filter(
+        Q(pod__isnull=True, is_published=True)
+        | Q(pod_id__in=all_user_pod_ids, is_published=True)
+        | Q(created_by=request.user)
+    ).select_related('pod').prefetch_related('modules__lessons')
+    if request.user.is_staff or request.user.is_superuser:
+        available_courses = Course.objects.all().select_related('pod').prefetch_related('modules__lessons')
+    if search_query:
+        available_courses = available_courses.filter(title__icontains=search_query)
+    for course in available_courses:
+        lesson_ids = [
+            lesson.id
+            for module in course.modules.all()
+            for lesson in module.lessons.all()
+        ]
+        course.total_lessons = len(lesson_ids)
+        course.completed_lessons = LessonProgress.objects.filter(
+            user=request.user,
+            lesson_id__in=lesson_ids,
+        ).count()
+        course.progress_percent = (
+            course.completed_lessons * 100 // course.total_lessons
+            if course.total_lessons else 0
+        )
 
     context = {
         'master_lessons': master_lessons,
         'pod_lessons': pod_lessons,
+        'courses': available_courses,
         'search_query': search_query,
         'can_create_lessons': (
+            request.user.is_staff
+            or request.user.is_superuser
+            or request.user.leading_pods.exists()
+        ),
+        'can_create_course': (
             request.user.is_staff
             or request.user.is_superuser
             or request.user.leading_pods.exists()
@@ -41,20 +105,180 @@ def lesson_list_view(request):
     return render(request, 'curriculum/lesson_list.html', context)
 
 
+def _can_manage_course(user, course):
+    return (
+        user.is_staff
+        or user.is_superuser
+        or course.created_by_id == user.id
+        or (course.pod_id and course.pod.leader_id == user.id)
+    )
+
+
+def _can_view_course(user, course):
+    if user.is_staff or user.is_superuser or _can_manage_course(user, course):
+        return True
+    if not course.is_published:
+        return False
+    return course.pod_id is None or (
+        course.pod.leader_id == user.id
+        or course.pod.memberships.filter(user=user).exists()
+    )
+
+
+def _course_is_complete(user, course):
+    lesson_ids = list(
+        Lesson.objects.filter(module__course=course).values_list('id', flat=True)
+    )
+    if not lesson_ids:
+        return False
+    if LessonProgress.objects.filter(user=user, lesson_id__in=lesson_ids).count() != len(lesson_ids):
+        return False
+    quizzes = ModuleQuiz.objects.filter(module__course=course)
+    return all(quiz.attempts.filter(user=user, passed=True).exists() for quiz in quizzes)
+
+
+def _issue_course_certificate(user, course):
+    if _course_is_complete(user, course):
+        return CourseCertificate.objects.get_or_create(user=user, course=course)[0]
+    return None
+
+
+@login_required
+def course_detail_view(request, course_id):
+    course = get_object_or_404(
+        Course.objects.select_related('pod', 'created_by').prefetch_related(
+            'modules__lessons',
+            'modules__quiz__questions__choices',
+        ),
+        pk=course_id,
+    )
+    if not _can_view_course(request.user, course):
+        return HttpResponseForbidden('You do not have access to this course.')
+
+    modules = list(course.modules.all())
+    lesson_ids = [lesson.id for module in modules for lesson in module.lessons.all()]
+    completed_ids = set(
+        LessonProgress.objects.filter(
+            user=request.user,
+            lesson_id__in=lesson_ids,
+        ).values_list('lesson_id', flat=True)
+    )
+    for module in modules:
+        module.lesson_items = list(module.lessons.all())
+        module.completed_count = sum(lesson.id in completed_ids for lesson in module.lesson_items)
+        module.quiz_passed = (
+            hasattr(module, 'quiz')
+            and module.quiz.attempts.filter(user=request.user, passed=True).exists()
+        )
+    total_lessons = len(lesson_ids)
+    completed_count = len(completed_ids)
+    certificate = _issue_course_certificate(request.user, course)
+    context = {
+        'course': course,
+        'modules': modules,
+        'total_lessons': total_lessons,
+        'completed_count': completed_count,
+        'progress_percent': completed_count * 100 // total_lessons if total_lessons else 0,
+        'completed_ids': completed_ids,
+        'can_manage': _can_manage_course(request.user, course),
+        'certificate': certificate,
+    }
+    return render(request, 'curriculum/course_detail.html', context)
+
+
+@login_required
+def course_create_view(request):
+    if not (
+        request.user.is_staff
+        or request.user.is_superuser
+        or request.user.leading_pods.exists()
+    ):
+        return HttpResponseForbidden('Only admins and pod leaders can create courses.')
+    if request.method == 'POST':
+        form = CourseForm(request.POST, user=request.user)
+        if form.is_valid():
+            course = form.save(commit=False)
+            course.created_by = request.user
+            course.save()
+            messages.success(request, f'Course "{course.title}" created.')
+            return redirect('course_detail', course_id=course.pk)
+    else:
+        form = CourseForm(user=request.user)
+    return render(request, 'curriculum/course_form.html', {'form': form})
+
+
+@login_required
+def module_create_view(request, course_id):
+    course = get_object_or_404(Course, pk=course_id)
+    if not _can_manage_course(request.user, course):
+        return HttpResponseForbidden('You cannot edit this course.')
+    if request.method == 'POST':
+        form = ModuleForm(request.POST)
+        if form.is_valid():
+            module = form.save(commit=False)
+            module.course = course
+            module.save()
+            messages.success(request, f'Module "{module.title}" added.')
+            return redirect('course_detail', course_id=course.pk)
+    else:
+        form = ModuleForm()
+    return render(request, 'curriculum/module_form.html', {'form': form, 'course': course})
+
+
 @login_required
 def lesson_detail_view(request, lesson_id):
     """
     Displays full lesson text, HTML5 audio playback player, PDF download links,
     and the 'Teach This' button for eligible leaders.
     """
-    lesson = get_object_or_404(Lesson, id=lesson_id)
+    lesson = get_object_or_404(
+        Lesson.objects.select_related('module__course'),
+        id=lesson_id,
+    )
+    course = lesson.module.course if lesson.module_id else None
+    if course and not _can_view_course(request.user, course):
+        return HttpResponseForbidden('You do not have access to this lesson.')
     
     # Check if the current user is a leader of at least one pod
     user_is_a_leader = request.user.leading_pods.exists()
 
+    course_lessons = []
+    current_index = None
+    is_complete = False
+    completed_ids = set()
+    if course:
+        course_lessons = list(
+            Lesson.objects.filter(module__course=course)
+            .select_related('module')
+            .order_by('module__order', 'module_id', 'order', 'created_at')
+        )
+        current_index = next(
+            (index for index, item in enumerate(course_lessons) if item.pk == lesson.pk),
+            None,
+        )
+        completed_ids = set(
+            LessonProgress.objects.filter(
+                user=request.user,
+                lesson_id__in=[item.pk for item in course_lessons],
+            ).values_list('lesson_id', flat=True)
+        )
+        is_complete = lesson.pk in completed_ids
     context = {
         'lesson': lesson,
         'user_is_a_leader': user_is_a_leader,
+        'lesson_structure': structure_lesson(lesson.content),
+        'course': course,
+        'course_lessons': course_lessons,
+        'current_index': current_index,
+        'previous_lesson': course_lessons[current_index - 1] if current_index else None,
+        'next_lesson': (
+            course_lessons[current_index + 1]
+            if current_index is not None and current_index + 1 < len(course_lessons)
+            else None
+        ),
+        'is_complete': is_complete,
+        'completed_ids': completed_ids,
+        'can_manage_course': _can_manage_course(request.user, course) if course else False,
     }
     return render(request, 'curriculum/lesson_detail.html', context)
 
@@ -70,17 +294,224 @@ def lesson_create_view(request):
 
     if request.method == 'POST':
         # MUST pass request.FILES to handle uploaded audio/PDF files
-        form = LessonForm(request.POST, request.FILES)
+        form = LessonForm(request.POST, request.FILES, user=request.user)
         if form.is_valid():
-            lesson = form.save(commit=False)
-            lesson.created_by = request.user
-            lesson.save()
-            messages.success(request, f"Lesson '{lesson.title}' uploaded successfully!")
-            return redirect('lesson_list')
+            word_document = form.cleaned_data['word_document']
+            if word_document:
+                try:
+                    pdf_content, extracted_text = convert_word_document(word_document)
+                except DocumentConversionError as error:
+                    form.add_error('word_document', str(error))
+                else:
+                    lesson = form.save(commit=False)
+                    lesson.content = extracted_text
+                    lesson.created_by = request.user
+                    lesson.module = form.cleaned_data.get('module')
+                    lesson.order = form.cleaned_data.get('order') or 0
+                    if lesson.module:
+                        lesson.pod = lesson.module.course.pod
+                        lesson.is_master_template = lesson.module.course.pod_id is None
+                    filename = f'{slugify(lesson.title) or "lesson"}-{uuid.uuid4().hex}.pdf'
+                    lesson.pdf_resource.save(filename, ContentFile(pdf_content), save=False)
+                    lesson.save()
+                    messages.success(request, f"Lesson '{lesson.title}' uploaded and converted to PDF.")
+                    return redirect('lesson_list')
+            else:
+                lesson = form.save(commit=False)
+                lesson.created_by = request.user
+                lesson.module = form.cleaned_data.get('module')
+                lesson.order = form.cleaned_data.get('order') or 0
+                if lesson.module:
+                    lesson.pod = lesson.module.course.pod
+                    lesson.is_master_template = lesson.module.course.pod_id is None
+                lesson.save()
+                messages.success(request, f"Lesson '{lesson.title}' uploaded successfully!")
+                return redirect('lesson_list')
     else:
-        form = LessonForm()
+        initial = {}
+        module_id = request.GET.get('module')
+        if module_id:
+            initial['module'] = module_id
+        form = LessonForm(user=request.user, initial=initial)
 
     return render(request, 'curriculum/lesson_form.html', {'form': form, 'title': 'Create & Upload Lesson'})
+
+
+@login_required
+@require_POST
+def lesson_complete_view(request, lesson_id):
+    lesson = get_object_or_404(
+        Lesson.objects.select_related('module__course'),
+        pk=lesson_id,
+        module__isnull=False,
+    )
+    course = lesson.module.course
+    if not _can_view_course(request.user, course):
+        return HttpResponseForbidden('You do not have access to this course.')
+    LessonProgress.objects.get_or_create(user=request.user, lesson=lesson)
+    _issue_course_certificate(request.user, course)
+    messages.success(request, 'Lesson marked complete.')
+    return redirect('lesson_detail', lesson_id=lesson.pk)
+
+
+@login_required
+def quiz_view(request, module_id):
+    module = get_object_or_404(
+        Module.objects.select_related('course').prefetch_related('lessons', 'quiz__questions__choices'),
+        pk=module_id,
+    )
+    if not _can_view_course(request.user, module.course):
+        return HttpResponseForbidden('You do not have access to this course.')
+    quiz = get_object_or_404(ModuleQuiz.objects.prefetch_related('questions__choices'), module=module)
+    incomplete_lessons = Lesson.objects.filter(module=module).exclude(
+        progress_records__user=request.user
+    ).exists()
+    if incomplete_lessons:
+        messages.info(request, 'Complete the module lessons before taking its quiz.')
+        return redirect('course_detail', course_id=module.course_id)
+    questions = list(quiz.questions.all())
+    latest_attempt = quiz.attempts.filter(user=request.user).first()
+
+    if request.method == 'POST':
+        if not questions:
+            messages.error(request, 'This quiz has no questions yet.')
+            return redirect('quiz', module_id=module.pk)
+        correct_count = 0
+        for question in questions:
+            choice_id = request.POST.get(f'question_{question.pk}')
+            if question.choices.filter(pk=choice_id, is_correct=True).exists():
+                correct_count += 1
+        score = correct_count * 100 // len(questions)
+        passed = score >= quiz.passing_score
+        attempt = QuizAttempt.objects.create(
+            user=request.user,
+            quiz=quiz,
+            score=score,
+            passed=passed,
+        )
+        if passed:
+            _issue_course_certificate(request.user, module.course)
+            messages.success(request, f'You passed with {score}%.')
+        else:
+            messages.warning(request, f'You scored {score}%. Review the module and try again.')
+        return redirect('quiz_result', attempt_id=attempt.pk)
+
+    return render(request, 'curriculum/quiz.html', {
+        'module': module,
+        'course': module.course,
+        'quiz': quiz,
+        'questions': questions,
+        'latest_attempt': latest_attempt,
+    })
+
+
+@login_required
+def quiz_result_view(request, attempt_id):
+    attempt = get_object_or_404(
+        QuizAttempt.objects.select_related('quiz__module__course'),
+        pk=attempt_id,
+        user=request.user,
+    )
+    if not _can_view_course(request.user, attempt.quiz.module.course):
+        return HttpResponseForbidden('You do not have access to this course.')
+    return render(request, 'curriculum/quiz_result.html', {'attempt': attempt})
+
+
+@login_required
+def quiz_manage_view(request, module_id):
+    module = get_object_or_404(Module.objects.select_related('course'), pk=module_id)
+    if not _can_manage_course(request.user, module.course):
+        return HttpResponseForbidden('You cannot edit this course.')
+    quiz, _ = ModuleQuiz.objects.get_or_create(
+        module=module,
+        defaults={'title': f'{module.title} Quiz'},
+    )
+    settings_form = QuizSettingsForm(request.POST or None, instance=quiz, prefix='settings')
+    question_form = QuizQuestionForm(request.POST or None, prefix='question')
+
+    if request.method == 'POST' and 'save_settings' in request.POST:
+        if settings_form.is_valid():
+            settings_form.save()
+            messages.success(request, 'Quiz settings saved.')
+            return redirect('quiz_manage', module_id=module.pk)
+    elif request.method == 'POST' and 'add_question' in request.POST:
+        if question_form.is_valid():
+            with transaction.atomic():
+                question = QuizQuestion.objects.create(
+                    quiz=quiz,
+                    prompt=question_form.cleaned_data['prompt'],
+                    order=quiz.questions.count(),
+                )
+                correct_choice = question_form.cleaned_data['correct_choice']
+                for index in range(1, 5):
+                    QuizChoice.objects.create(
+                        question=question,
+                        text=question_form.cleaned_data[f'choice_{index}'],
+                        is_correct=str(index) == correct_choice,
+                        order=index,
+                    )
+            messages.success(request, 'Question added to quiz.')
+            return redirect('quiz_manage', module_id=module.pk)
+    elif request.method == 'POST' and 'delete_question' in request.POST:
+        question = get_object_or_404(QuizQuestion, pk=request.POST.get('delete_question'), quiz=quiz)
+        question.delete()
+        messages.success(request, 'Question removed.')
+        return redirect('quiz_manage', module_id=module.pk)
+
+    return render(request, 'curriculum/quiz_manage.html', {
+        'module': module,
+        'course': module.course,
+        'quiz': quiz,
+        'settings_form': settings_form,
+        'question_form': question_form,
+    })
+
+
+@login_required
+def certificate_view(request, course_id):
+    course = get_object_or_404(Course, pk=course_id)
+    if not _can_view_course(request.user, course):
+        return HttpResponseForbidden('You do not have access to this course.')
+    certificate = _issue_course_certificate(request.user, course)
+    if not certificate:
+        messages.error(request, 'Complete every lesson and pass each module quiz to earn this certificate.')
+        return redirect('course_detail', course_id=course.pk)
+    return render(request, 'curriculum/certificate.html', {'certificate': certificate})
+
+
+@login_required
+@require_POST
+def lesson_assist_view(request):
+    if not (request.user.is_staff or request.user.is_superuser or request.user.leading_pods.exists()):
+        return JsonResponse({'error': 'Only staff or pod leaders can use lesson assistance.'}, status=403)
+
+    content = request.POST.get('content', '').strip()
+    word_document = request.FILES.get('word_document')
+    if word_document:
+        if word_document.size > LessonForm.MAX_FILE_SIZE:
+            return JsonResponse({'error': 'Word document must be 10MB or smaller.'}, status=400)
+        if not word_document.name.lower().endswith(('.doc', '.docx')):
+            return JsonResponse({'error': 'Only Word documents (.doc or .docx) are supported.'}, status=400)
+        try:
+            _, content = convert_word_document(word_document)
+        except DocumentConversionError as error:
+            return JsonResponse({'error': str(error)}, status=400)
+
+    if not content:
+        return JsonResponse({'error': 'Enter lesson text or choose a Word document first.'}, status=400)
+    if len(content) > 30000:
+        return JsonResponse({'error': 'Lesson text is too long for analysis (30,000 characters maximum).'}, status=400)
+
+    result = structure_lesson(content)
+    result['extracted_text'] = content if word_document else ''
+    try:
+        result['ai_suggestions'] = generate_lesson_suggestions(content)
+        result['ai_available'] = True
+    except LessonAIError as error:
+        result['ai_suggestions'] = None
+        result['ai_available'] = False
+        result['ai_message'] = str(error)
+    return JsonResponse(result)
 
 
 @login_required

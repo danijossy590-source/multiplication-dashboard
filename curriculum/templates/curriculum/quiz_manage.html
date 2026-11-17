@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+
+{% block title %}Manage Quiz | Multiply{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-3xl space-y-6">
+    <header>
+        <a href="{% url 'course_detail' course.id %}" class="text-sm font-semibold text-indigo-700 hover:underline">&larr; {{ course.title }}</a>
+        <h1 class="mt-2 text-2xl font-bold text-indigo-950">Manage {{ module.title }} quiz</h1>
+    </header>
+
+    <section class="rounded-xl bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-bold">Quiz settings</h2>
+        <form method="post" class="mt-4 space-y-3">
+            {% csrf_token %}
+            {{ settings_form.as_p }}
+            <button name="save_settings" value="1" class="rounded bg-indigo-800 px-4 py-2 font-semibold text-white">Save settings</button>
+        </form>
+    </section>
+
+    <section class="rounded-xl bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-bold">Add multiple-choice question</h2>
+        <form method="post" class="mt-4 space-y-3">
+            {% csrf_token %}
+            {{ question_form.as_p }}
+            <button name="add_question" value="1" class="rounded bg-indigo-800 px-4 py-2 font-semibold text-white">Add question</button>
+        </form>
+    </section>
+
+    <section class="rounded-xl bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-bold">Questions ({{ quiz.questions.count }})</h2>
+        <ol class="mt-3 space-y-3">
+            {% for question in quiz.questions.all %}
+            <li class="flex items-start justify-between gap-3 rounded border p-3">
+                <div>
+                    <p class="font-semibold">{{ forloop.counter }}. {{ question.prompt }}</p>
+                    <ul class="mt-2 list-inside list-disc text-sm text-gray-600">
+                        {% for choice in question.choices.all %}
+                        <li>{% if choice.is_correct %}<strong class="text-emerald-700">{{ choice.text }} (correct)</strong>{% else %}{{ choice.text }}{% endif %}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                <form method="post">
+                    {% csrf_token %}
+                    <button name="delete_question" value="{{ question.id }}" class="text-sm text-red-700 hover:underline">Remove</button>
+                </form>
+            </li>
+            {% empty %}
+            <li class="text-sm text-gray-500">No questions added yet.</li>
+            {% endfor %}
+        </ol>
+    </section>
+</div>
+{% endblock %}

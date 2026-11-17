@@ -169,6 +169,10 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+OLLAMA_BASE_URL = os.getenv('OLLAMA_BASE_URL', '')
+OLLAMA_MODEL = os.getenv('OLLAMA_MODEL', 'qwen2.5:1.5b')
+OLLAMA_TIMEOUT = int(os.getenv('OLLAMA_TIMEOUT', '60'))
+
 
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration

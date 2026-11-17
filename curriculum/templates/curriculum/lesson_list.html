@@ -11,11 +11,37 @@
             <p class="text-sm text-gray-500 mt-1">Explore master teachings or access content assigned to your Pods.</p>
         </div>
         {% if can_create_lessons %}
-        <a href="{% url 'lesson_create' %}" class="bg-indigo-800 text-white px-4 py-2 rounded-lg font-semibold hover:bg-indigo-900 text-sm transition">
-            + Upload New Lesson
-        </a>
+        <div class="flex flex-wrap gap-2">
+            <a href="{% url 'course_create' %}" class="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800">+ Create Course</a>
+            <a href="{% url 'lesson_create' %}" class="rounded-lg bg-indigo-800 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-900">+ Upload New Lesson</a>
+        </div>
         {% endif %}
     </div>
+
+    <section class="space-y-4">
+        <div>
+            <h2 class="text-xl font-bold text-indigo-950">Courses</h2>
+            <p class="mt-1 text-sm text-gray-600">Follow an organized learning path, track your progress, and complete module quizzes.</p>
+        </div>
+        {% if courses %}
+        <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
+            {% for course in courses %}
+            <article class="flex flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                <p class="text-xs font-bold uppercase tracking-wider text-indigo-600">{% if course.pod %}{{ course.pod.name }}{% else %}Master course{% endif %}</p>
+                <h3 class="mt-2 text-xl font-bold text-gray-900">{{ course.title }}</h3>
+                <p class="mt-2 flex-grow text-sm text-gray-600">{{ course.description|default:"Follow the modules and lessons in order."|truncatewords:25 }}</p>
+                <div class="mt-4">
+                    <div class="flex justify-between text-xs text-gray-600"><span>{{ course.modules.count }} modules</span><span>{{ course.completed_lessons }}/{{ course.total_lessons }} lessons complete</span></div>
+                    <div class="mt-2 h-2 overflow-hidden rounded-full bg-gray-200"><div class="h-full bg-emerald-600" style="width: {{ course.progress_percent }}%"></div></div>
+                </div>
+                <a href="{% url 'course_detail' course.id %}" class="mt-4 inline-flex justify-center rounded-lg bg-indigo-800 px-4 py-2 font-semibold text-white hover:bg-indigo-900">Open course</a>
+            </article>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="rounded-lg bg-white p-5 text-sm text-gray-500">No courses are available yet. Standalone lessons are listed below.</p>
+        {% endif %}
+    </section>
 
     <!-- Navigation Tabs (JavaScript Enabled) -->
     <div class="border-b border-gray-200">
