@@ -9,6 +9,41 @@ from django.urls import reverse
 from accounts.models import CustomUser
 
 
+class SignupRoleTests(TestCase):
+    def test_landing_page_displays_orientation_content(self):
+        response = self.client.get(reverse("landing"), secure=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Guidelines for Every Lesson")
+        self.assertContains(response, "Our Commitment to You")
+        self.assertContains(response, "Ocheni Josiah O.")
+
+    def test_signup_always_creates_mentee_even_if_role_is_submitted(self):
+        response = self.client.post(
+            reverse("signup"),
+            {
+                "username": "new-mentee",
+                "email": "new-mentee@example.com",
+                "password1": "Strong-password-123!",
+                "password2": "Strong-password-123!",
+                "role": "admin",
+            },
+            secure=True,
+        )
+
+        self.assertRedirects(response, reverse("profile"), fetch_redirect_response=False)
+        user = CustomUser.objects.get(username="new-mentee")
+        self.assertEqual(user.role, "mentee")
+        self.assertFalse(user.is_staff)
+        self.assertFalse(user.is_superuser)
+
+    def test_signup_page_does_not_show_role_selection(self):
+        response = self.client.get(reverse("signup"), secure=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'name="role"')
+
+
 class AdminRolePreservationTests(TestCase):
     def setUp(self):
         self.admin = CustomUser.objects.create_user(

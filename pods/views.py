@@ -2,9 +2,17 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from accounts.utils import notify_user
-from .models import Pod, PodMember, ApprenticeOversight
-from .forms import PodForm, AddMemberForm, LaunchApprenticePodForm
+from .models import Pod, PodMember, PodMentor, PodMessage, PodMeeting, ApprenticeOversight
+from .forms import (
+    AddMemberForm,
+    AssignMentorsForm,
+    LaunchApprenticePodForm,
+    PodForm,
+    PodMeetingForm,
+    PodMessageForm,
+)
 
 User = get_user_model()
 
@@ -17,6 +25,8 @@ def user_has_pod_access(user, pod):
     if pod.leader_id == user.id:
         return True
     if PodMember.objects.filter(pod=pod, user=user).exists():
+        return True
+    if PodMentor.objects.filter(pod=pod, mentor=user).exists():
         return True
     if ApprenticeOversight.objects.filter(apprentice_pod=pod, mentor=user).exists():
         return True
@@ -51,20 +61,31 @@ def pod_create_view(request):
     """
     Creates a new Pod and automatically adds the user as Leader.
     """
+    is_admin = request.user.is_staff or request.user.is_superuser
     if request.method == 'POST':
-        form = PodForm(request.POST)
+        form = PodForm(request.POST, is_admin=is_admin)
         if form.is_valid():
-            pod = form.save(commit=False)
-            pod.leader = request.user
-            pod.save()
-            
-            # Automatically create PodMember record for the leader
-            PodMember.objects.create(pod=pod, user=request.user, role='LEADER')
+            with transaction.atomic():
+                pod = form.save(commit=False)
+                pod.leader = form.cleaned_data['leader'] if is_admin else request.user
+                pod.save()
+                PodMember.objects.create(pod=pod, user=pod.leader, role='LEADER')
+                if is_admin:
+                    PodMentor.objects.bulk_create(
+                        [PodMentor(pod=pod, mentor=mentor) for mentor in form.cleaned_data['mentors']]
+                    )
             notify_user(request.user, 'Pod created', f"You created the pod '{pod.name}'.", f'/pods/{pod.id}/')
+            if pod.leader != request.user:
+                notify_user(
+                    pod.leader,
+                    'Pod leadership assigned',
+                    f"You are the leader of '{pod.name}'.",
+                    f'/pods/{pod.id}/',
+                )
             messages.success(request, f"Pod '{pod.name}' created successfully!")
             return redirect('pod_detail', pod_id=pod.id)
     else:
-        form = PodForm()
+        form = PodForm(is_admin=is_admin)
 
     return render(request, 'pods/pod_form.html', {'form': form, 'title': 'Create New Pod'})
 
@@ -80,6 +101,8 @@ def pod_detail_view(request, pod_id):
     is_leader = (pod.leader == request.user)
     is_member = PodMember.objects.filter(pod=pod, user=request.user).exists()
     is_overseers = ApprenticeOversight.objects.filter(apprentice_pod=pod, mentor=request.user).exists()
+    is_admin = request.user.is_staff or request.user.is_superuser
+    is_mentor = PodMentor.objects.filter(pod=pod, mentor=request.user).exists()
 
     # Access security check
     if not user_has_pod_access(request.user, pod):
@@ -88,9 +111,16 @@ def pod_detail_view(request, pod_id):
 
     members = pod.memberships.select_related('user').all()
 
-    # Form to add members (only visible to leader)
+    can_manage_members = is_leader or is_admin
+    can_participate = is_admin or is_leader or is_member or is_mentor
     add_member_form = AddMemberForm()
-    if is_leader and request.method == 'POST' and 'add_member' in request.POST:
+    assign_mentors_form = AssignMentorsForm(
+        initial={'mentors': pod.mentors.values_list('mentor_id', flat=True)}
+    )
+    message_form = PodMessageForm()
+    meeting_form = PodMeetingForm()
+
+    if can_manage_members and request.method == 'POST' and 'add_member' in request.POST:
         add_member_form = AddMemberForm(request.POST)
         if add_member_form.is_valid():
             username = add_member_form.cleaned_data['username']
@@ -105,15 +135,58 @@ def pod_detail_view(request, pod_id):
                     return redirect('pod_detail', pod_id=pod.id)
             except User.DoesNotExist:
                 messages.error(request, f"User '{username}' does not exist.")
+    elif is_admin and request.method == 'POST' and 'assign_mentors' in request.POST:
+        assign_mentors_form = AssignMentorsForm(request.POST)
+        if assign_mentors_form.is_valid():
+            selected_mentors = assign_mentors_form.cleaned_data['mentors']
+            with transaction.atomic():
+                pod.mentors.exclude(mentor__in=selected_mentors).delete()
+                PodMentor.objects.bulk_create(
+                    [
+                        PodMentor(pod=pod, mentor=mentor)
+                        for mentor in selected_mentors
+                        if not pod.mentors.filter(mentor=mentor).exists()
+                    ]
+                )
+            messages.success(request, f"Mentors updated for {pod.name}.")
+            return redirect('pod_detail', pod_id=pod.id)
+    elif can_participate and request.method == 'POST' and 'send_message' in request.POST:
+        message_form = PodMessageForm(request.POST)
+        if message_form.is_valid():
+            PodMessage.objects.create(
+                pod=pod,
+                author=request.user,
+                body=message_form.cleaned_data['body'],
+            )
+            return redirect('pod_detail', pod_id=pod.id)
+    elif can_participate and request.method == 'POST' and 'schedule_meeting' in request.POST:
+        meeting_form = PodMeetingForm(request.POST)
+        if meeting_form.is_valid():
+            PodMeeting.objects.create(
+                pod=pod,
+                created_by=request.user,
+                **meeting_form.cleaned_data,
+            )
+            messages.success(request, "Pod meeting scheduled.")
+            return redirect('pod_detail', pod_id=pod.id)
 
     context = {
         'pod': pod,
         'members': members,
+        'mentors': pod.mentors.select_related('mentor').all(),
+        'chat_messages': pod.messages.select_related('author').all(),
+        'meetings': pod.meetings.select_related('created_by').all(),
         'is_leader': is_leader,
         'is_member': is_member,
         'is_overseers': is_overseers,
-        'is_admin': request.user.is_staff or request.user.is_superuser,
+        'is_admin': is_admin,
+        'is_mentor': is_mentor,
+        'can_manage_members': can_manage_members,
+        'can_participate': can_participate,
         'add_member_form': add_member_form,
+        'assign_mentors_form': assign_mentors_form,
+        'message_form': message_form,
+        'meeting_form': meeting_form,
     }
     return render(request, 'pods/pod_detail.html', context)
 

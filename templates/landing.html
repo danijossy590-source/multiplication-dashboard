@@ -3,26 +3,67 @@
 {% block title %}Camp of Gilgal | Multiply{% endblock %}
 
 {% block content %}
-<section class="text-center py-12">
-    <p class="text-sm font-semibold uppercase tracking-widest text-indigo-600">Camp of Gilgal</p>
-    <h1 class="mt-3 text-3xl font-bold text-indigo-950 sm:text-4xl">Multiply discipleship platform</h1>
-    <p class="mx-auto mt-4 max-w-2xl text-lg text-gray-600">
-        Learn, grow, teach, and build mentoring relationships through the Camp of Gilgal community.
-    </p>
+<div class="mx-auto max-w-4xl space-y-8">
+    <section class="rounded-2xl bg-gradient-to-br from-indigo-950 to-indigo-800 px-6 py-12 text-center text-white shadow-lg sm:px-12">
+        <p class="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-200">Camp of Gilgal • Orientation &amp; Welcome Letter</p>
+        <h1 class="mt-4 text-3xl font-bold sm:text-5xl">Welcome to the Camp!</h1>
+        <p class="mt-5 text-lg font-semibold text-indigo-100">Dear Beloved,</p>
+        <p class="mx-auto mt-3 max-w-3xl leading-7 text-indigo-50">
+            It is with great joy that we welcome you to the Camp of Gilgal. We believe that you have given your life to Christ and that you are already a member of the community of Christ and the family of God. Within this vast community is a camp called the Camp of Gilgal—a platform God has purposed in Christ Jesus where believers are trained to become sound disciples of Jesus Christ and equipped to disciple others as well. Yes, in the Camp of Gilgal, the Great Commission remains our only commission.
+        </p>
+        <div class="mt-8 flex flex-wrap justify-center gap-3">
+            {% if user.is_authenticated %}
+                <a href="{% url 'lesson_list' %}" class="rounded-lg bg-white px-6 py-3 font-semibold text-indigo-900 hover:bg-indigo-50">Enter the platform</a>
+            {% else %}
+                <a href="{% url 'signup' %}" class="rounded-lg bg-white px-6 py-3 font-semibold text-indigo-900 hover:bg-indigo-50">Join the Camp</a>
+                <a href="{% url 'login' %}" class="rounded-lg border border-indigo-200 px-6 py-3 font-semibold text-white hover:bg-white/10">Log in</a>
+            {% endif %}
+        </div>
+    </section>
 
-    <div class="mt-8 flex flex-wrap justify-center gap-4">
-        {% if user.is_authenticated %}
-            <a href="{% url 'lesson_list' %}" class="rounded-lg bg-indigo-800 px-6 py-3 font-semibold text-white hover:bg-indigo-900">
-                Enter the platform
-            </a>
-        {% else %}
-            <a href="{% url 'login' %}" class="rounded-lg bg-indigo-800 px-6 py-3 font-semibold text-white hover:bg-indigo-900">
-                Log in
-            </a>
-            <a href="{% url 'signup' %}" class="rounded-lg border border-indigo-800 px-6 py-3 font-semibold text-indigo-800 hover:bg-indigo-50">
-                Create an account
-            </a>
-        {% endif %}
-    </div>
-</section>
+    <section class="rounded-xl border border-indigo-100 bg-white p-6 shadow-sm sm:p-8">
+        <h2 class="text-2xl font-bold text-indigo-950">Why the Camp of Gilgal Exists</h2>
+        <p class="mt-4 leading-7 text-gray-700">
+            Over the years, we have identified various gaps in modern discipleship systems. Aside from seeing people who claim various forms of spiritual parenthood yet are not strongly established in the Word, we have also seen people who are very knowledgeable yet lack deep fellowship with God and practical application of that knowledge—resulting in them merely being puffed up by knowledge.
+        </p>
+        <p class="mt-4 leading-7 text-gray-700">
+            All our lessons on this platform are channeled toward addressing those gaps. They are completely free and designed for your spiritual growth—however, they will demand your utmost attention and require you to make them a priority.
+        </p>
+    </section>
+
+    <section class="rounded-xl border border-indigo-100 bg-white p-6 shadow-sm sm:p-8">
+        <h2 class="text-2xl font-bold text-indigo-950">Guidelines for Every Lesson</h2>
+        <ul class="mt-5 space-y-5">
+            <li>
+                <h3 class="font-bold text-gray-900">Treat Lessons as a Live Classroom</h3>
+                <p class="mt-1 leading-7 text-gray-700">Do not treat this platform as casual online reading. Whenever you come online, eliminate distractions and focus on what you are learning as if you were sitting in a physical classroom.</p>
+            </li>
+            <li>
+                <h3 class="font-bold text-gray-900">Pray After Every Lesson</h3>
+                <p class="mt-1 leading-7 text-gray-700">After completing each lesson, pray in tongues for at least 10 minutes, alongside any other prayer the Holy Spirit lays on your heart.</p>
+            </li>
+            <li>
+                <h3 class="font-bold text-gray-900">Complete All Challenges</h3>
+                <p class="mt-1 leading-7 text-gray-700">Attempt all the challenges provided. If you fail any challenge, go back and review the lesson again until you master it.</p>
+            </li>
+            <li>
+                <h3 class="font-bold text-gray-900">Download Video &amp; PDF Resources</h3>
+                <p class="mt-1 leading-7 text-gray-700">We also provide a dedicated section for video lessons and PDFs. Download them, watch, listen, and read—they are all targeted toward your spiritual growth.</p>
+            </li>
+            <li>
+                <h3 class="font-bold text-gray-900">Participate Actively in Your Pod</h3>
+                <p class="mt-1 leading-7 text-gray-700">You will be placed into different pods and assigned a leader. Be active in your group, ask questions, make contributions, and build godly relationships—all for the sake of mutual growth.</p>
+            </li>
+        </ul>
+    </section>
+
+    <section class="rounded-xl border border-emerald-100 bg-emerald-50 p-6 sm:p-8">
+        <h2 class="text-2xl font-bold text-emerald-950">Our Commitment to You</h2>
+        <p class="mt-4 leading-7 text-gray-700">
+            We promise you that divine encounters await you as you read through every lesson. In all, here in the Camp of Gilgal, your spiritual growth is our responsibility. We love you and cannot wait to see you becoming all that God has purposed for you.
+        </p>
+        <p class="mt-6 text-lg font-bold text-emerald-950">Welcome to the Camp!</p>
+        <p class="mt-4 font-semibold text-gray-800">Ocheni Josiah O.<br>Camp of Gilgal</p>
+    </section>
+</div>
 {% endblock %}

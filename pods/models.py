@@ -74,3 +74,59 @@ class ApprenticeOversight(models.Model):
 
     def __str__(self):
         return f"Mentor {self.mentor.username} overseeing Pod '{self.apprentice_pod.name}'"
+
+
+class PodMentor(models.Model):
+    """A mentor assigned to participate in a Pod."""
+    pod = models.ForeignKey(Pod, on_delete=models.CASCADE, related_name='mentors')
+    mentor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='mentored_pods',
+    )
+    assigned_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('pod', 'mentor')
+
+    def __str__(self):
+        return f"{self.mentor.username} mentoring {self.pod.name}"
+
+
+class PodMessage(models.Model):
+    """A message posted to a Pod's group chat."""
+    pod = models.ForeignKey(Pod, on_delete=models.CASCADE, related_name='messages')
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='pod_messages',
+    )
+    body = models.TextField(max_length=2000)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"Message from {self.author.username} in {self.pod.name}"
+
+
+class PodMeeting(models.Model):
+    """A scheduled meeting for Pod members."""
+    pod = models.ForeignKey(Pod, on_delete=models.CASCADE, related_name='meetings')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='created_pod_meetings',
+    )
+    title = models.CharField(max_length=150)
+    details = models.TextField(blank=True)
+    scheduled_at = models.DateTimeField()
+    meeting_url = models.URLField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['scheduled_at']
+
+    def __str__(self):
+        return f"{self.title} - {self.pod.name}"

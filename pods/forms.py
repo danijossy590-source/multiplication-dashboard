@@ -11,6 +11,23 @@ class PodForm(forms.ModelForm):
         model = Pod
         fields = ['name', 'description']
 
+    def __init__(self, *args, **kwargs):
+        is_admin = kwargs.pop('is_admin', False)
+        super().__init__(*args, **kwargs)
+        if is_admin:
+            active_users = User.objects.filter(is_active=True).order_by('username')
+            self.fields['leader'] = forms.ModelChoiceField(
+                queryset=active_users,
+                help_text="Choose the primary leader for this Pod.",
+            )
+            self.fields['mentors'] = forms.ModelMultipleChoiceField(
+                queryset=active_users,
+                required=False,
+                widget=forms.CheckboxSelectMultiple,
+                help_text="Optionally assign mentors who can participate in this Pod.",
+            )
+
+
 class AddMemberForm(forms.Form):
     """Form to add an existing registered user to a Pod. """
     username = forms.CharField(
@@ -20,9 +37,47 @@ class AddMemberForm(forms.Form):
     
 
     role = forms.ChoiceField(
-        choices=PodMember.ROLE_CHOICES,
+        choices=[choice for choice in PodMember.ROLE_CHOICES if choice[0] != 'LEADER'],
         widget=forms.Select(attrs={'class': 'w-full p-2 border rounded'})
     )
+
+
+class AssignMentorsForm(forms.Form):
+    mentors = forms.ModelMultipleChoiceField(
+        queryset=User.objects.none(),
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+        help_text="Selected mentors can view and participate in this Pod.",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['mentors'].queryset = User.objects.filter(is_active=True).order_by('username')
+
+
+class PodMessageForm(forms.Form):
+    body = forms.CharField(
+        max_length=2000,
+        widget=forms.Textarea(attrs={
+            'class': 'w-full p-3 border rounded-lg',
+            'rows': 2,
+            'placeholder': 'Write a message to your Pod...',
+        }),
+    )
+
+
+class PodMeetingForm(forms.Form):
+    title = forms.CharField(max_length=150)
+    details = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={'rows': 2}),
+    )
+    scheduled_at = forms.DateTimeField(
+        label="Date and time (UTC)",
+        input_formats=['%Y-%m-%dT%H:%M'],
+        widget=forms.DateTimeInput(attrs={'type': 'datetime-local'}),
+    )
+    meeting_url = forms.URLField(required=False)
 
 
 class LaunchApprenticePodForm(forms.Form):

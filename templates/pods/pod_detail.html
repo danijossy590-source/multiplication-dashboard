@@ -15,10 +15,12 @@
             <div class="shrink-0">
                 {% if is_leader %}
                     <span class="bg-indigo-800 text-white text-xs px-3 py-1.5 rounded-full font-bold">Primary Leader</span>
+                {% elif is_admin %}
+                    <span class="bg-amber-100 text-amber-800 text-xs px-3 py-1.5 rounded-full font-bold">Admin Management</span>
+                {% elif is_mentor %}
+                    <span class="bg-sky-100 text-sky-800 text-xs px-3 py-1.5 rounded-full font-bold">Pod Mentor</span>
                 {% elif is_overseers %}
                     <span class="bg-emerald-700 text-white text-xs px-3 py-1.5 rounded-full font-bold">Mentor Oversight (Read-Only)</span>
-                {% elif is_admin %}
-                    <span class="bg-amber-100 text-amber-800 text-xs px-3 py-1.5 rounded-full font-bold">Admin Read-Only</span>
                 {% else %}
                     <span class="bg-gray-700 text-white text-xs px-3 py-1.5 rounded-full font-bold">Member</span>
                 {% endif %}
@@ -48,12 +50,21 @@
                     </li>
                 {% endfor %}
             </ul>
+            {% if mentors %}
+            <div class="mt-6 border-t pt-4">
+                <h3 class="font-bold text-gray-800">Pod Mentors</h3>
+                <p class="mt-2 text-sm text-gray-600">
+                    {% for assignment in mentors %}{{ assignment.mentor.get_full_name|default:assignment.mentor.username }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                </p>
+            </div>
+            {% endif %}
         </div>
 
-        <!-- Leader Management Sidebar -->
-        {% if is_leader %}
+        <!-- Pod Management -->
+        {% if can_manage_members or is_admin %}
         <div class="rounded-lg bg-white p-4 shadow-md sm:p-6 space-y-4">
-            <h3 class="text-lg font-bold text-indigo-900 border-b pb-2">Add New Member</h3>
+            {% if can_manage_members %}
+            <h3 class="text-lg font-bold text-indigo-900 border-b pb-2">Add Pod Member</h3>
             <form method="post" class="space-y-3">
                 {% csrf_token %}
                 <input type="hidden" name="add_member" value="1">
@@ -62,8 +73,90 @@
                     Add Member
                 </button>
             </form>
+            {% endif %}
+            {% if is_admin %}
+            <h3 class="text-lg font-bold text-indigo-900 border-b pb-2">Assign Pod Mentors</h3>
+            <form method="post" class="space-y-3">
+                {% csrf_token %}
+                <input type="hidden" name="assign_mentors" value="1">
+                {{ assign_mentors_form.as_p }}
+                <button type="submit" class="w-full rounded bg-indigo-800 py-2 text-sm font-semibold text-white hover:bg-indigo-900">
+                    Save Mentors
+                </button>
+            </form>
+            {% endif %}
         </div>
         {% endif %}
+    </div>
+
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <section class="rounded-lg bg-white p-4 shadow-md sm:p-6 lg:col-span-2">
+            <div class="mb-4 flex items-center justify-between border-b pb-3">
+                <div>
+                    <h2 class="text-xl font-bold text-gray-800">Pod Chat</h2>
+                    <p class="text-sm text-gray-500">Messages shared with everyone in this Pod.</p>
+                </div>
+            </div>
+            <div class="max-h-96 space-y-3 overflow-y-auto rounded-lg bg-gray-50 p-4">
+                {% for message in chat_messages %}
+                <article class="rounded-lg bg-white p-3 shadow-sm">
+                    <div class="flex flex-wrap items-baseline justify-between gap-2">
+                        <p class="font-semibold text-indigo-900">{{ message.author.get_full_name|default:message.author.username }}</p>
+                        <time class="text-xs text-gray-500">{{ message.created_at|date:"M d, Y g:i A" }}</time>
+                    </div>
+                    <p class="mt-1 whitespace-pre-wrap break-words text-sm text-gray-700">{{ message.body }}</p>
+                </article>
+                {% empty %}
+                <p class="py-8 text-center text-sm text-gray-500">No messages yet. Start the conversation.</p>
+                {% endfor %}
+            </div>
+            {% if can_participate %}
+            <form method="post" class="mt-4 space-y-3">
+                {% csrf_token %}
+                <input type="hidden" name="send_message" value="1">
+                {{ message_form.as_p }}
+                <button type="submit" class="rounded-lg bg-indigo-800 px-5 py-2 font-semibold text-white hover:bg-indigo-900">
+                    Send message
+                </button>
+            </form>
+            {% elif is_overseers %}
+            <p class="mt-4 text-sm text-emerald-800">You have read-only mentor oversight in this Pod.</p>
+            {% endif %}
+        </section>
+
+        <aside class="space-y-6">
+            <section class="rounded-lg bg-white p-4 shadow-md sm:p-6">
+                <h2 class="mb-4 text-xl font-bold text-gray-800">Pod Meetings</h2>
+                <div class="space-y-4">
+                    {% for meeting in meetings %}
+                    <article class="rounded-lg border border-indigo-100 p-3">
+                        <h3 class="font-semibold text-indigo-900">{{ meeting.title }}</h3>
+                        <p class="mt-1 text-sm text-gray-600">{{ meeting.scheduled_at|date:"M d, Y g:i A" }}</p>
+                        {% if meeting.details %}<p class="mt-2 whitespace-pre-wrap text-sm text-gray-700">{{ meeting.details }}</p>{% endif %}
+                        <p class="mt-2 text-xs text-gray-500">Scheduled by {{ meeting.created_by.get_full_name|default:meeting.created_by.username }}</p>
+                        {% if meeting.meeting_url %}
+                        <a href="{{ meeting.meeting_url }}" target="_blank" rel="noopener noreferrer" class="mt-2 inline-block text-sm font-semibold text-indigo-700 hover:underline">Join meeting</a>
+                        {% endif %}
+                    </article>
+                    {% empty %}
+                    <p class="text-sm text-gray-500">No meetings scheduled yet.</p>
+                    {% endfor %}
+                </div>
+            </section>
+            {% if can_participate %}
+            <section class="rounded-lg bg-white p-4 shadow-md sm:p-6">
+                <h3 class="mb-3 text-lg font-bold text-indigo-900">Schedule a Meeting</h3>
+                <form method="post" class="space-y-3">
+                    {% csrf_token %}
+                    <input type="hidden" name="schedule_meeting" value="1">
+                    {{ meeting_form.as_p }}
+                    <button type="submit" class="w-full rounded-lg bg-emerald-700 py-2 font-semibold text-white hover:bg-emerald-800">
+                        Schedule meeting
+                    </button>
+                </form>
+            </section>
+            {% endif %}
+        </aside>
     </div>
 </div>
 {% endblock %}
