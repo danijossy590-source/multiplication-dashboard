@@ -5,8 +5,10 @@ from django.utils import timezone
 from .models import Assignment, Reflection
 from .forms import AssignmentForm, ReflectionForm, MentorFeedbackForm
 from django.http import JsonResponse
+from django.db.models import Count, Q
 from accounts.utils import get_multiplication_stats, build_discipleship_tree, notify_user
 from pods.models import Pod
+from community.models import Question
 
 @login_required
 def assignment_create_view(request):
@@ -120,11 +122,17 @@ def multiplication_dashboard_view(request):
     ).select_related('user', 'assignment').order_by('-submitted_at')[:5]
 
     active_pods = Pod.objects.filter(leader=user)
+    recent_questions = (
+        Question.objects.filter(is_hidden=False)
+        .annotate(visible_reply_count=Count('replies', filter=Q(replies__is_hidden=False)))
+        .order_by('-created_at')[:3]
+    )
 
     context = {
         'stats': stats,
         'recent_reflections': recent_reflections,
         'active_pods': active_pods,
+        'recent_questions': recent_questions,
         'can_create_assignments': (
             request.user.is_staff
             or request.user.is_superuser

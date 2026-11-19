@@ -42,6 +42,18 @@ class AddMemberForm(forms.Form):
     )
 
 
+class JoinPodForm(forms.Form):
+    code = forms.CharField(
+        max_length=24,
+        strip=True,
+        widget=forms.TextInput(attrs={
+            'autocomplete': 'off',
+            'placeholder': 'Enter the Pod access code',
+            'class': 'w-full rounded-lg border p-2.5',
+        }),
+    )
+
+
 class AssignMentorsForm(forms.Form):
     mentors = forms.ModelMultipleChoiceField(
         queryset=User.objects.none(),

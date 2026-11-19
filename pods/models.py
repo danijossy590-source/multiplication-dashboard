@@ -1,3 +1,5 @@
+import secrets
+
 from django.db import models
 from django.conf import settings
 
@@ -19,8 +21,27 @@ class Pod(models.Model):
         related_name='leading_pods',
         help_text="The primary leader/mentor of this Pod"
     )
+    join_code = models.CharField(max_length=24, unique=True, blank=True, null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def _new_join_code(self):
+        while True:
+            code = secrets.token_urlsafe(12)
+            if not Pod.objects.filter(join_code=code).exclude(pk=self.pk).exists():
+                return code
+
+    def save(self, *args, **kwargs):
+        if not self.join_code:
+            self.join_code = self._new_join_code()
+            if kwargs.get('update_fields') is not None:
+                kwargs['update_fields'] = set(kwargs['update_fields']) | {'join_code'}
+        super().save(*args, **kwargs)
+
+    def rotate_join_code(self):
+        self.join_code = self._new_join_code()
+        self.save(update_fields=['join_code'])
+        return self.join_code
 
     def __str__(self):
         return f"{self.name} (Leader: {self.leader.username})"

@@ -77,6 +77,7 @@ INSTALLED_APPS = [
     'accounts',
     'curriculum',
     'growth',
+    'community',
 ]
 
 MIDDLEWARE = [
@@ -169,9 +170,30 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+AI_PROVIDER = os.getenv('AI_PROVIDER', 'gemini').strip().lower()
+
 OLLAMA_BASE_URL = os.getenv('OLLAMA_BASE_URL', '')
 OLLAMA_MODEL = os.getenv('OLLAMA_MODEL', 'qwen2.5:1.5b')
 OLLAMA_TIMEOUT = int(os.getenv('OLLAMA_TIMEOUT', '60'))
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
+GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-3.5-flash-lite')
+GEMINI_TIMEOUT = int(os.getenv('GEMINI_TIMEOUT', '60'))
+OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY', '')
+OPENROUTER_MODEL = os.getenv('OPENROUTER_MODEL', '')
+OPENROUTER_BASE_URL = os.getenv(
+    'OPENROUTER_BASE_URL',
+    'https://openrouter.ai/api/v1',
+).rstrip('/')
+OPENROUTER_TIMEOUT = int(os.getenv('OPENROUTER_TIMEOUT', '90'))
+OPENROUTER_SITE_URL = os.getenv('OPENROUTER_SITE_URL', '')
+OPENROUTER_APP_NAME = os.getenv('OPENROUTER_APP_NAME', 'Multiply Curriculum')
+DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY', '')
+DEEPSEEK_MODEL = os.getenv('DEEPSEEK_MODEL', 'deepseek-chat')
+DEEPSEEK_BASE_URL = os.getenv(
+    'DEEPSEEK_BASE_URL',
+    'https://api.deepseek.com',
+).rstrip('/')
+DEEPSEEK_TIMEOUT = int(os.getenv('DEEPSEEK_TIMEOUT', '90'))
 
 
 # Email

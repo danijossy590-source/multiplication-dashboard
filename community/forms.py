@@ -1,0 +1,63 @@
+from django import forms
+from .models import ContentReport, Question, Reply
+
+
+class QuestionForm(forms.ModelForm):
+    body = forms.CharField(
+        max_length=5000,
+        widget=forms.Textarea(attrs={
+            'rows': 6,
+            'placeholder': 'Add any context that will help the community respond.',
+        }),
+    )
+
+    class Meta:
+        model = Question
+        fields = ['title', 'body', 'display_name', 'is_anonymous']
+        widgets = {
+            'title': forms.TextInput(attrs={'maxlength': 180, 'placeholder': 'What would you like to ask?'}),
+            'display_name': forms.TextInput(attrs={'maxlength': 80, 'placeholder': 'Optional display name'}),
+            'is_anonymous': forms.CheckboxInput(),
+        }
+        labels = {
+            'body': 'Question details',
+            'display_name': 'Name to display (guests)',
+            'is_anonymous': 'Post anonymously',
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['display_name'].required = False
+
+
+class ReplyForm(forms.ModelForm):
+    body = forms.CharField(
+        max_length=5000,
+        widget=forms.Textarea(attrs={'rows': 4, 'placeholder': 'Write a helpful reply...'}),
+    )
+    parent_id = forms.IntegerField(required=False, widget=forms.HiddenInput())
+
+    class Meta:
+        model = Reply
+        fields = ['body', 'is_anonymous']
+        widgets = {
+            'is_anonymous': forms.CheckboxInput(),
+        }
+        labels = {
+            'body': 'Your reply',
+            'is_anonymous': 'Reply anonymously',
+        }
+
+
+class ReportForm(forms.ModelForm):
+    class Meta:
+        model = ContentReport
+        fields = ['reason']
+        widgets = {
+            'reason': forms.Textarea(attrs={
+                'rows': 2,
+                'maxlength': 500,
+                'placeholder': 'Tell moderators why this should be reviewed.',
+            }),
+        }
+        labels = {'reason': 'Reason for report'}

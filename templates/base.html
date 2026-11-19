@@ -35,11 +35,13 @@
                         <a href="{% url 'multiplication_dashboard' %}" class="hover:underline">Growth</a>
                         <a href="{% url 'pod_list' %}" class="hover:underline">Pods</a>
                         <a href="{% url 'lesson_list' %}" class="hover:underline">Curriculum</a>
+                        <a href="{% url 'question_list' %}" class="hover:underline">Community Q&amp;A</a>
                     {% else %}
                         <a href="{% url 'multiplication_dashboard' %}" class="hover:underline">Dashboard</a>
                         <a href="{% url 'profile' %}" class="hover:underline">My Profile</a>
                         <a href="{% url 'pod_list' %}" class="hover:underline">Pods</a>
                         <a href="{% url 'lesson_list' %}" class="hover:underline">Curriculum</a>
+                        <a href="{% url 'question_list' %}" class="hover:underline">Community Q&amp;A</a>
                     {% endif %}
                     <a href="{% url 'notifications' %}" class="relative inline-flex items-center gap-1 rounded bg-indigo-700 px-3 py-1 text-sm hover:bg-indigo-600">
                         Notifications
@@ -52,6 +54,7 @@
                         <button type="submit" class="bg-red-600 px-3 py-1 rounded text-sm hover:bg-red-700">Logout</button>
                     </form>
                 {% else %}
+                    <a href="{% url 'question_list' %}" class="hover:underline">Community Q&amp;A</a>
                     <a href="{% url 'login' %}" class="hover:underline">Login</a>
                     <a href="{% url 'signup' %}" class="bg-indigo-600 px-3 py-1 rounded text-sm hover:bg-indigo-500">Sign Up</a>
                 {% endif %}

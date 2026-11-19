@@ -53,11 +53,13 @@ class LessonForm(forms.ModelForm):
                     Q(course__pod__leader=user)
                     | Q(course__pod__isnull=True, course__created_by=user)
                 )
+            if self.instance.pk and self.instance.module_id:
+                modules = modules | Module.objects.filter(pk=self.instance.module_id)
             self.fields['module'].queryset = modules.order_by('course__title', 'order')
 
     def clean_audio_file(self):
         audio_file = self.cleaned_data.get('audio_file')
-        if not audio_file:
+        if not audio_file or not self.files.get(self.add_prefix('audio_file')):
             return audio_file
         if audio_file.size > self.MAX_FILE_SIZE:
             raise forms.ValidationError('Audio file must be 10MB or smaller.')
@@ -67,7 +69,7 @@ class LessonForm(forms.ModelForm):
 
     def clean_pdf_resource(self):
         pdf_resource = self.cleaned_data.get('pdf_resource')
-        if not pdf_resource:
+        if not pdf_resource or not self.files.get(self.add_prefix('pdf_resource')):
             return pdf_resource
         if pdf_resource.size > self.MAX_FILE_SIZE:
             raise forms.ValidationError('PDF resource must be 10MB or smaller.')
@@ -89,9 +91,8 @@ class LessonForm(forms.ModelForm):
         cleaned_data = super().clean()
         word_document = cleaned_data.get('word_document')
         content = cleaned_data.get('content')
-        pdf_resource = cleaned_data.get('pdf_resource')
 
-        if word_document and pdf_resource:
+        if word_document and self.files.get(self.add_prefix('pdf_resource')):
             self.add_error('pdf_resource', 'Upload either a Word lesson document or a PDF resource, not both.')
         if not word_document and not content:
             self.add_error('content', 'Enter lesson content or upload a Word lesson document.')
@@ -129,6 +130,77 @@ class CourseForm(forms.ModelForm):
             self.fields['pod'].queryset = Pod.objects.filter(leader=user).order_by('name')
             self.fields['pod'].required = True
             self.fields['pod'].help_text = 'Choose one of the Pods you lead.'
+
+
+class CourseGenerationForm(forms.Form):
+    MAX_LESSONS = 12
+    MAX_SOURCE_CHARACTERS = 14000
+
+    pod = forms.ModelChoiceField(
+        queryset=Pod.objects.none(),
+        required=False,
+        empty_label='Global course',
+        help_text='Choose a Pod for a Pod-specific course, or leave blank for a global course.',
+    )
+    lessons = forms.ModelMultipleChoiceField(
+        queryset=Lesson.objects.none(),
+        widget=forms.CheckboxSelectMultiple,
+        help_text='Select up to 12 unassigned lessons. Their content will be sent to the configured AI provider for analysis.',
+    )
+
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user')
+        super().__init__(*args, **kwargs)
+        is_admin = user.is_staff or user.is_superuser
+        if is_admin:
+            self.fields['pod'].queryset = Pod.objects.order_by('name')
+            lessons = Lesson.objects.filter(module__isnull=True)
+        else:
+            self.fields['pod'].queryset = Pod.objects.filter(leader=user).order_by('name')
+            self.fields['pod'].required = True
+            self.fields['pod'].empty_label = None
+            lessons = Lesson.objects.filter(module__isnull=True).filter(
+                Q(created_by=user)
+                | Q(pod__leader=user)
+                | Q(is_master_template=True)
+            )
+        self.fields['lessons'].queryset = lessons.select_related('pod', 'created_by').order_by(
+            'title',
+            'id',
+        ).distinct()
+        self.user = user
+        self.is_admin = is_admin
+
+    def clean(self):
+        cleaned_data = super().clean()
+        pod = cleaned_data.get('pod')
+        lessons = cleaned_data.get('lessons')
+        if not lessons:
+            return cleaned_data
+
+        selected_lessons = list(lessons)
+        if len(selected_lessons) > self.MAX_LESSONS:
+            self.add_error('lessons', f'Select no more than {self.MAX_LESSONS} lessons at a time.')
+            return cleaned_data
+
+        source_length = sum(len(lesson.content) for lesson in selected_lessons)
+        if source_length > self.MAX_SOURCE_CHARACTERS:
+            self.add_error(
+                'lessons',
+                'The selected lesson content is too large for one course analysis. Select fewer or shorter lessons.',
+            )
+
+        if pod:
+            mismatched_pods = [
+                lesson for lesson in selected_lessons
+                if lesson.pod_id and lesson.pod_id != pod.pk
+            ]
+            if mismatched_pods:
+                self.add_error('lessons', 'Select lessons from the chosen Pod or global lessons.')
+        elif any(lesson.pod_id for lesson in selected_lessons):
+            self.add_error('pod', 'Choose the Pod that owns the selected lessons.')
+
+        return cleaned_data
 
 
 class ModuleForm(forms.ModelForm):

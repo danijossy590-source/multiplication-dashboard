@@ -14,6 +14,8 @@ services:
 
   ollama:
     image: ollama/ollama
+    profiles:
+      - local-ai
     volumes:
       - ollama_data:/root/.ollama
     restart: unless-stopped
@@ -32,11 +34,11 @@ services:
     env_file:
       - .env
     environment:
+      - AI_PROVIDER=${AI_PROVIDER:-gemini}
       - OLLAMA_BASE_URL=http://ollama:11434
       - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:1.5b}
     depends_on:
       - db
-      - ollama
     restart: always
 
   nginx:

@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+
+{% block title %}Join a Pod | Multiply{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-xl rounded-xl bg-white p-6 shadow-sm sm:p-8">
+    <a class="text-sm font-semibold text-indigo-700 hover:underline" href="{% url 'pod_list' %}">&larr; Back to Pods</a>
+    <h1 class="mt-4 text-2xl font-bold text-indigo-950">Join a Pod</h1>
+    <p class="mt-2 text-sm text-gray-600">Enter the access code shared by a Pod admin or leader. You will be added as a member.</p>
+    <form method="post" class="mt-5 space-y-4">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit" class="w-full rounded-lg bg-indigo-800 px-5 py-2.5 font-semibold text-white hover:bg-indigo-900">Join Pod</button>
+    </form>
+</div>
+{% endblock %}

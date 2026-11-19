@@ -36,6 +36,8 @@ class Module(models.Model):
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='modules')
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
+    learning_objectives = models.TextField(blank=True)
+    learning_steps = models.TextField(blank=True)
     order = models.PositiveIntegerField(default=0)
 
     class Meta:

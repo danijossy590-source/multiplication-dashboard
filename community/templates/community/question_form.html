@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+
+{% block title %}Ask a question | Multiply{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-3xl space-y-5">
+    <a class="text-sm font-semibold text-indigo-700 hover:underline" href="{% url 'question_list' %}">&larr; Back to questions</a>
+    <section class="rounded-2xl bg-white p-6 shadow-sm sm:p-8">
+        <p class="text-xs font-bold uppercase tracking-widest text-indigo-600">Community Q&amp;A</p>
+        <h1 class="mt-2 text-2xl font-bold text-gray-900">Ask a question</h1>
+        <p class="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Questions are public and can be read by anyone. Please leave out private information.</p>
+        <form method="post" class="mt-6 space-y-4">
+            {% csrf_token %}
+            {% if form.errors %}
+            <div class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">
+                {{ form.non_field_errors }}
+                {% for field in form %}
+                    {% for error in field.errors %}<p>{{ field.label }}: {{ error }}</p>{% endfor %}
+                {% endfor %}
+            </div>
+            {% endif %}
+            <div>
+                <label for="{{ form.title.id_for_label }}" class="font-semibold text-gray-800">{{ form.title.label }}</label>
+                {{ form.title }}
+            </div>
+            <div>
+                <label for="{{ form.body.id_for_label }}" class="font-semibold text-gray-800">{{ form.body.label }}</label>
+                {{ form.body }}
+            </div>
+            {% if not user.is_authenticated %}
+            <div>
+                <label for="{{ form.display_name.id_for_label }}" class="font-semibold text-gray-800">{{ form.display_name.label }}</label>
+                {{ form.display_name }}
+                <p class="mt-1 text-xs text-gray-500">Optional. Leave blank to use “Guest”. This name will be public unless you post anonymously.</p>
+            </div>
+            {% endif %}
+            <div class="flex items-start gap-2">
+                {{ form.is_anonymous }}
+                <label for="{{ form.is_anonymous.id_for_label }}" class="text-sm font-medium text-gray-700">{{ form.is_anonymous.label }}</label>
+            </div>
+            {% if user.is_authenticated %}
+            <p class="text-xs text-gray-500">Your account is retained privately for moderation, even when your public name is hidden.</p>
+            {% endif %}
+            <button type="submit" class="w-full rounded-lg bg-indigo-800 px-5 py-3 font-semibold text-white hover:bg-indigo-900">Post question</button>
+        </form>
+    </section>
+</div>
+{% endblock %}

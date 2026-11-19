@@ -12,7 +12,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.utils.text import slugify
 
 from .documents import DocumentConversionError, convert_word_document
-from .ai import LessonAIError, generate_lesson_suggestions
+from .ai import LessonAIError, generate_course_plan, generate_lesson_suggestions
 from .models import (
     Course,
     CourseCertificate,
@@ -26,6 +26,7 @@ from .models import (
 )
 from .forms import (
     CourseForm,
+    CourseGenerationForm,
     LessonForm,
     ModuleForm,
     QuizQuestionForm,
@@ -112,6 +113,36 @@ def _can_manage_course(user, course):
         or course.created_by_id == user.id
         or (course.pod_id and course.pod.leader_id == user.id)
     )
+
+
+def _can_manage_lesson(user, lesson):
+    return (
+        user.is_staff
+        or user.is_superuser
+        or lesson.created_by_id == user.id
+        or (lesson.pod_id and lesson.pod.leader_id == user.id)
+        or (
+            lesson.module_id
+            and _can_manage_course(user, lesson.module.course)
+        )
+    )
+
+
+def _lesson_files(lesson):
+    return [
+        (field.storage, field.name)
+        for field in (lesson.audio_file, lesson.pdf_resource)
+        if field
+    ]
+
+
+def _delete_unreferenced_lesson_files(files):
+    for storage, name in files:
+        still_referenced = Lesson.objects.filter(
+            Q(audio_file=name) | Q(pdf_resource=name)
+        ).exists()
+        if not still_referenced:
+            storage.delete(name)
 
 
 def _can_view_course(user, course):
@@ -208,6 +239,94 @@ def course_create_view(request):
 
 
 @login_required
+def course_generate_view(request):
+    if not (
+        request.user.is_staff
+        or request.user.is_superuser
+        or request.user.leading_pods.exists()
+    ):
+        return HttpResponseForbidden('Only admins and pod leaders can generate courses.')
+
+    form = CourseGenerationForm(
+        request.POST if request.method == 'POST' else None,
+        user=request.user,
+    )
+    if request.method == 'POST' and form.is_valid():
+        selected_lessons = list(form.cleaned_data['lessons'])
+        lesson_sources = [
+            {
+                'id': lesson.pk,
+                'title': lesson.title,
+                'description': lesson.description or '',
+                'content': lesson.content,
+            }
+            for lesson in selected_lessons
+        ]
+        try:
+            plan = generate_course_plan(lesson_sources)
+        except LessonAIError as error:
+            form.add_error(None, str(error))
+        else:
+            pod = form.cleaned_data['pod']
+            selected_by_id = {lesson.pk: lesson for lesson in selected_lessons}
+            with transaction.atomic():
+                course = Course.objects.create(
+                    title=plan['course_title'],
+                    description=plan['course_description'],
+                    pod=pod,
+                    created_by=request.user,
+                    is_published=True,
+                )
+                for module_order, module_plan in enumerate(plan['modules']):
+                    module = Module.objects.create(
+                        course=course,
+                        title=module_plan['title'],
+                        description=module_plan['description'],
+                        learning_objectives='\n'.join(module_plan['learning_objectives']),
+                        learning_steps='\n'.join(
+                            f'{step_number}. {step}'
+                            for step_number, step in enumerate(module_plan['learning_steps'], start=1)
+                        ),
+                        order=module_order,
+                    )
+                    for lesson_order, lesson_id in enumerate(module_plan['lesson_ids']):
+                        lesson = selected_by_id[lesson_id]
+                        if pod and lesson.pod_id is None and lesson.is_master_template:
+                            lesson = lesson.clone_for_pod(pod, request.user)
+                        if pod:
+                            lesson.pod = pod
+                            lesson.is_master_template = False
+                        lesson.module = module
+                        lesson.order = lesson_order
+                        lesson.save()
+
+                    quiz = ModuleQuiz.objects.create(
+                        module=module,
+                        title=module_plan['quiz_title'],
+                    )
+                    for question_order, question_plan in enumerate(module_plan['quiz_questions']):
+                        question = QuizQuestion.objects.create(
+                            quiz=quiz,
+                            prompt=question_plan['prompt'],
+                            order=question_order,
+                        )
+                        QuizChoice.objects.bulk_create([
+                            QuizChoice(
+                                question=question,
+                                text=choice,
+                                is_correct=choice_order == question_plan['correct_choice'],
+                                order=choice_order,
+                            )
+                            for choice_order, choice in enumerate(question_plan['choices'])
+                        ])
+
+            messages.success(request, f'Course "{course.title}" was generated and published.')
+            return redirect('course_detail', course_id=course.pk)
+
+    return render(request, 'curriculum/course_generate.html', {'form': form})
+
+
+@login_required
 def module_create_view(request, course_id):
     course = get_object_or_404(Course, pk=course_id)
     if not _can_manage_course(request.user, course):
@@ -278,6 +397,7 @@ def lesson_detail_view(request, lesson_id):
         ),
         'is_complete': is_complete,
         'completed_ids': completed_ids,
+        'can_manage_lesson': _can_manage_lesson(request.user, lesson),
         'can_manage_course': _can_manage_course(request.user, course) if course else False,
     }
     return render(request, 'curriculum/lesson_detail.html', context)
@@ -335,6 +455,78 @@ def lesson_create_view(request):
         form = LessonForm(user=request.user, initial=initial)
 
     return render(request, 'curriculum/lesson_form.html', {'form': form, 'title': 'Create & Upload Lesson'})
+
+
+@login_required
+def lesson_edit_view(request, lesson_id):
+    lesson = get_object_or_404(
+        Lesson.objects.select_related('module__course', 'pod'),
+        pk=lesson_id,
+    )
+    if not _can_manage_lesson(request.user, lesson):
+        return HttpResponseForbidden('You cannot edit this lesson.')
+
+    if request.method == 'POST':
+        form = LessonForm(request.POST, request.FILES, instance=lesson, user=request.user)
+        if form.is_valid():
+            old_files = _lesson_files(lesson)
+            word_document = form.cleaned_data['word_document']
+            if word_document:
+                try:
+                    pdf_content, extracted_text = convert_word_document(word_document)
+                except DocumentConversionError as error:
+                    form.add_error('word_document', str(error))
+                else:
+                    lesson = form.save(commit=False)
+                    lesson.content = extracted_text
+                    lesson.module = form.cleaned_data.get('module')
+                    lesson.order = form.cleaned_data.get('order') or 0
+                    if lesson.module:
+                        lesson.pod = lesson.module.course.pod
+                        lesson.is_master_template = lesson.module.course.pod_id is None
+                    filename = f'{slugify(lesson.title) or "lesson"}-{uuid.uuid4().hex}.pdf'
+                    lesson.pdf_resource.save(filename, ContentFile(pdf_content), save=False)
+                    lesson.save()
+                    _delete_unreferenced_lesson_files(old_files)
+                    messages.success(request, f"Lesson '{lesson.title}' updated.")
+                    return redirect('lesson_detail', lesson_id=lesson.pk)
+            else:
+                lesson = form.save(commit=False)
+                lesson.module = form.cleaned_data.get('module')
+                lesson.order = form.cleaned_data.get('order') or 0
+                if lesson.module:
+                    lesson.pod = lesson.module.course.pod
+                    lesson.is_master_template = lesson.module.course.pod_id is None
+                lesson.save()
+                _delete_unreferenced_lesson_files(old_files)
+                messages.success(request, f"Lesson '{lesson.title}' updated.")
+                return redirect('lesson_detail', lesson_id=lesson.pk)
+    else:
+        form = LessonForm(instance=lesson, user=request.user)
+
+    return render(request, 'curriculum/lesson_form.html', {
+        'form': form,
+        'title': 'Edit Lesson',
+        'lesson': lesson,
+    })
+
+
+@login_required
+@require_POST
+def lesson_delete_view(request, lesson_id):
+    lesson = get_object_or_404(
+        Lesson.objects.select_related('module__course', 'pod'),
+        pk=lesson_id,
+    )
+    if not _can_manage_lesson(request.user, lesson):
+        return HttpResponseForbidden('You cannot delete this lesson.')
+
+    lesson_title = lesson.title
+    files = _lesson_files(lesson)
+    lesson.delete()
+    _delete_unreferenced_lesson_files(files)
+    messages.success(request, f"Lesson '{lesson_title}' deleted.")
+    return redirect('lesson_list')
 
 
 @login_required

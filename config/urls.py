@@ -14,6 +14,7 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
@@ -23,8 +24,10 @@ urlpatterns = [
     path('', landing_view, name='landing'),
 
     path('admin/', admin_dashboard, name='admin_dashboard'),
+    path('django-admin/', admin.site.urls),
     path('admin/users/', admin_users, name='admin_users'),
     path('accounts/', include('accounts.urls')),
+    path('questions/', include('community.urls')),
     path('pods/', include('pods.urls')), 
     path('curriculum/', include('curriculum.urls')),
     path('growth/', include('growth.urls')),

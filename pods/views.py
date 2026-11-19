@@ -3,11 +3,16 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.db.models import Q
+from django.http import HttpResponseForbidden
+from django.views.decorators.http import require_POST
 from accounts.utils import notify_user
+from curriculum.models import Lesson
 from .models import Pod, PodMember, PodMentor, PodMessage, PodMeeting, ApprenticeOversight
 from .forms import (
     AddMemberForm,
     AssignMentorsForm,
+    JoinPodForm,
     LaunchApprenticePodForm,
     PodForm,
     PodMeetingForm,
@@ -52,8 +57,37 @@ def pod_list_view(request):
         if request.user.is_staff or request.user.is_superuser
         else Pod.objects.none(),
         'is_admin': request.user.is_staff or request.user.is_superuser,
+        'join_form': JoinPodForm(),
     }
     return render(request, 'pods/pod_list.html', context)
+
+
+@login_required
+def pod_join_view(request):
+    if request.method == 'POST':
+        form = JoinPodForm(request.POST)
+        if form.is_valid():
+            pod = Pod.objects.filter(
+                join_code=form.cleaned_data['code'],
+                status='active',
+            ).first()
+            if not pod:
+                form.add_error('code', 'That code is invalid or the Pod is not accepting members.')
+            else:
+                _, created = PodMember.objects.get_or_create(
+                    pod=pod,
+                    user=request.user,
+                    defaults={'role': 'MEMBER'},
+                )
+                if created:
+                    messages.success(request, f"You joined '{pod.name}'.")
+                else:
+                    messages.info(request, f"You are already part of '{pod.name}'.")
+                return redirect('pod_detail', pod_id=pod.pk)
+    else:
+        form = JoinPodForm()
+
+    return render(request, 'pods/pod_join.html', {'form': form})
 
 
 @login_required
@@ -135,6 +169,12 @@ def pod_detail_view(request, pod_id):
                     return redirect('pod_detail', pod_id=pod.id)
             except User.DoesNotExist:
                 messages.error(request, f"User '{username}' does not exist.")
+    elif request.method == 'POST' and 'rotate_join_code' in request.POST:
+        if not can_manage_members:
+            return HttpResponseForbidden('Only admins and this Pod leader can manage its join code.')
+        pod.rotate_join_code()
+        messages.success(request, f"A new access code was generated for '{pod.name}'. The old code no longer works.")
+        return redirect('pod_detail', pod_id=pod.id)
     elif is_admin and request.method == 'POST' and 'assign_mentors' in request.POST:
         assign_mentors_form = AssignMentorsForm(request.POST)
         if assign_mentors_form.is_valid():
@@ -187,8 +227,38 @@ def pod_detail_view(request, pod_id):
         'assign_mentors_form': assign_mentors_form,
         'message_form': message_form,
         'meeting_form': meeting_form,
+        'can_manage_join_code': can_manage_members,
     }
     return render(request, 'pods/pod_detail.html', context)
+
+
+@login_required
+@require_POST
+def pod_delete_view(request, pod_id):
+    if not (request.user.is_staff or request.user.is_superuser):
+        return HttpResponseForbidden('Only admins can delete Pods.')
+
+    pod = get_object_or_404(Pod, pk=pod_id)
+    files = {}
+    pod_lessons = Lesson.objects.filter(
+        Q(pod=pod) | Q(module__course__pod=pod)
+    ).distinct()
+    for lesson in pod_lessons:
+        for field in (lesson.audio_file, lesson.pdf_resource):
+            if field:
+                files[field.name] = field.storage
+
+    pod_name = pod.name
+    with transaction.atomic():
+        pod_lessons.delete()
+        pod.delete()
+
+    for name, storage in files.items():
+        if not Lesson.objects.filter(Q(audio_file=name) | Q(pdf_resource=name)).exists():
+            storage.delete(name)
+
+    messages.success(request, f"Pod '{pod_name}' and its associated data were deleted.")
+    return redirect('pod_list')
 
 
 @login_required

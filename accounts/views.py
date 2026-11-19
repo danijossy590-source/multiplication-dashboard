@@ -9,6 +9,7 @@ from accounts.utils import notify_user
 from pods.models import Pod
 from curriculum.models import Lesson
 from growth.models import Assignment, Reflection
+from community.models import ContentReport
 
 
 class RoleBasedLoginView(LoginView):
@@ -35,6 +36,9 @@ def admin_dashboard(request):
         'total_lessons': Lesson.objects.count(),
         'total_assignments': Assignment.objects.count(),
         'pending_reflections': Reflection.objects.filter(is_approved=False).count(),
+        'pending_question_reports': ContentReport.objects.filter(
+            status=ContentReport.Status.PENDING
+        ).count(),
         'recent_users': CustomUser.objects.order_by('-date_joined')[:8],
         'recent_pods': Pod.objects.select_related('leader').order_by('-created_at')[:6],
         'recent_reflections': Reflection.objects.select_related(

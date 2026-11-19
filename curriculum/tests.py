@@ -9,7 +9,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from accounts.models import CustomUser
-from .ai import LessonAIError, generate_lesson_suggestions
+from .ai import LessonAIError, generate_course_plan, generate_lesson_suggestions
 from .models import (
     Course,
     CourseCertificate,
@@ -46,6 +46,7 @@ class CurriculumVisibilityTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, 'Upload New Lesson')
+        self.assertNotContains(response, 'Generate Course with AI')
 
     def test_pod_leader_sees_upload_lesson_action(self):
         self.client.force_login(self.leader)
@@ -54,6 +55,7 @@ class CurriculumVisibilityTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Upload New Lesson')
+        self.assertContains(response, 'Generate Course with AI')
 
     def test_non_leader_cannot_open_lesson_creation(self):
         self.client.force_login(self.member)
@@ -154,6 +156,151 @@ class CurriculumVisibilityTests(TestCase):
         self.assertEqual(response.status_code, 403)
 
 
+class LessonManagementTests(TestCase):
+    def setUp(self):
+        self.creator = CustomUser.objects.create_user(
+            username='lesson-creator',
+            password='test-password',
+        )
+        self.other_user = CustomUser.objects.create_user(
+            username='lesson-other-user',
+            password='test-password',
+        )
+        self.lesson = Lesson.objects.create(
+            title='Uploaded lesson',
+            description='Original summary',
+            content='Original lesson content.',
+            created_by=self.creator,
+            is_master_template=True,
+        )
+
+    def test_creator_can_edit_uploaded_lesson(self):
+        self.client.force_login(self.creator)
+
+        response = self.client.post(
+            reverse('lesson_edit', args=[self.lesson.pk]),
+            {
+                'title': 'Updated lesson',
+                'description': 'Updated summary',
+                'content': 'Updated lesson content.',
+                'discussion_questions': 'What did you learn?',
+                'is_master_template': 'on',
+                'module': '',
+                'order': '1',
+            },
+            secure=True,
+        )
+
+        self.assertRedirects(
+            response,
+            reverse('lesson_detail', args=[self.lesson.pk]),
+            fetch_redirect_response=False,
+        )
+        self.lesson.refresh_from_db()
+        self.assertEqual(self.lesson.title, 'Updated lesson')
+        self.assertEqual(self.lesson.content, 'Updated lesson content.')
+        self.assertEqual(self.lesson.order, 1)
+
+    def test_unrelated_user_cannot_edit_or_delete_lesson(self):
+        self.client.force_login(self.other_user)
+
+        edit_response = self.client.get(
+            reverse('lesson_edit', args=[self.lesson.pk]),
+            secure=True,
+        )
+        delete_response = self.client.post(
+            reverse('lesson_delete', args=[self.lesson.pk]),
+            secure=True,
+        )
+
+        self.assertEqual(edit_response.status_code, 403)
+        self.assertEqual(delete_response.status_code, 403)
+        self.assertTrue(Lesson.objects.filter(pk=self.lesson.pk).exists())
+
+    def test_creator_can_delete_uploaded_lesson(self):
+        self.client.force_login(self.creator)
+
+        response = self.client.post(
+            reverse('lesson_delete', args=[self.lesson.pk]),
+            secure=True,
+        )
+
+        self.assertRedirects(
+            response,
+            reverse('lesson_list'),
+            fetch_redirect_response=False,
+        )
+        self.assertFalse(Lesson.objects.filter(pk=self.lesson.pk).exists())
+
+    def test_edit_form_preserves_existing_attachments_and_detail_shows_controls(self):
+        media_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(media_directory.cleanup)
+        settings_override = override_settings(MEDIA_ROOT=media_directory.name)
+        settings_override.enable()
+        self.addCleanup(settings_override.disable)
+        self.lesson.audio_file.save(
+            'lesson.mp3',
+            SimpleUploadedFile('lesson.mp3', b'audio-content', content_type='audio/mpeg'),
+        )
+        self.lesson.pdf_resource.save(
+            'lesson.pdf',
+            SimpleUploadedFile('lesson.pdf', b'%PDF-content', content_type='application/pdf'),
+        )
+        self.client.force_login(self.creator)
+
+        detail_response = self.client.get(
+            reverse('lesson_detail', args=[self.lesson.pk]),
+            secure=True,
+        )
+        edit_response = self.client.post(
+            reverse('lesson_edit', args=[self.lesson.pk]),
+            {
+                'title': 'Updated lesson',
+                'description': 'Updated summary',
+                'content': 'Updated lesson content.',
+                'discussion_questions': '',
+                'is_master_template': 'on',
+                'module': '',
+                'order': '0',
+            },
+            secure=True,
+        )
+
+        self.assertContains(detail_response, 'Edit lesson')
+        self.assertContains(detail_response, 'Delete lesson')
+        self.assertRedirects(
+            edit_response,
+            reverse('lesson_detail', args=[self.lesson.pk]),
+            fetch_redirect_response=False,
+        )
+        self.lesson.refresh_from_db()
+        self.assertTrue(self.lesson.audio_file)
+        self.assertTrue(self.lesson.pdf_resource)
+        audio_path = Path(self.lesson.audio_file.path)
+        pdf_path = Path(self.lesson.pdf_resource.path)
+        shared_lesson = Lesson.objects.create(
+            title='Lesson sharing attachments',
+            content='Shared attachment content.',
+            created_by=self.creator,
+            audio_file=self.lesson.audio_file.name,
+            pdf_resource=self.lesson.pdf_resource.name,
+        )
+
+        self.client.post(
+            reverse('lesson_delete', args=[self.lesson.pk]),
+            secure=True,
+        )
+        self.assertTrue(audio_path.exists())
+        self.assertTrue(pdf_path.exists())
+
+        self.client.post(
+            reverse('lesson_delete', args=[shared_lesson.pk]),
+            secure=True,
+        )
+        self.assertFalse(audio_path.exists())
+        self.assertFalse(pdf_path.exists())
+
+
 class LessonStructureTests(TestCase):
     def test_unlabeled_content_is_preserved_and_required_sections_are_reported(self):
         result = structure_lesson('Opening note.  Introduction Start here.')
@@ -167,12 +314,43 @@ class LessonStructureTests(TestCase):
 
 
 class LocalLessonAITests(TestCase):
-    @override_settings(OLLAMA_BASE_URL='')
+    def _course_source_and_plan(self):
+        source = [{
+            'id': 42,
+            'title': 'A selected lesson',
+            'description': 'A short source lesson.',
+            'content': 'This lesson explains a single supported concept.',
+        }]
+        plan = {
+            'course_title': 'A generated course',
+            'course_description': 'A factual description based on the source.',
+            'modules': [{
+                'title': 'The core idea',
+                'description': '',
+                'learning_objectives': ['Describe the core idea.', 'Recognize it in an example.'],
+                'learning_steps': ['Read the lesson.', 'Review its example.'],
+                'lesson_ids': [42],
+                'quiz_title': 'Core idea check',
+                'quiz_questions': [{
+                    'prompt': 'What does the lesson explain?',
+                    'choices': ['The core concept', 'An unrelated concept', 'A new claim', 'An outside source'],
+                    'correct_choice': 0,
+                }, {
+                    'prompt': 'What should the learner review?',
+                    'choices': ['The example', 'Unrelated material', 'An outside source', 'No material'],
+                    'correct_choice': 0,
+                }],
+            }],
+        }
+        return source, plan
+
+    @override_settings(AI_PROVIDER='ollama', OLLAMA_BASE_URL='')
     def test_ai_not_configured_is_reported_without_network_request(self):
         with self.assertRaisesMessage(LessonAIError, 'not configured'):
             generate_lesson_suggestions('A lesson about prayer.')
 
     @override_settings(
+        AI_PROVIDER='ollama',
         OLLAMA_BASE_URL='http://ollama:11434',
         OLLAMA_MODEL='qwen2.5:1.5b',
         OLLAMA_TIMEOUT=5,
@@ -193,6 +371,319 @@ class LocalLessonAITests(TestCase):
         request = open_url.call_args.args[0]
         self.assertEqual(request.full_url, 'http://ollama:11434/api/generate')
         self.assertIn(b'qwen2.5:1.5b', request.data)
+
+    @override_settings(
+        AI_PROVIDER='gemini',
+        GEMINI_API_KEY='test-api-key',
+        GEMINI_MODEL='gemini-test',
+        GEMINI_TIMEOUT=5,
+    )
+    def test_gemini_suggestions_are_parsed_and_authenticated(self):
+        response_body = json.dumps({
+            'candidates': [{
+                'content': {
+                    'parts': [{
+                        'text': json.dumps({
+                            'summary': 'A short lesson summary.',
+                            'discussion_questions': ['Question one?', 'Question two?'],
+                        }),
+                    }],
+                },
+            }],
+        }).encode()
+
+        with patch('curriculum.ai.urlopen', return_value=BytesIO(response_body)) as open_url:
+            result = generate_lesson_suggestions('A lesson about prayer.')
+
+        self.assertEqual(result['summary'], 'A short lesson summary.')
+        self.assertEqual(result['discussion_questions'], ['Question one?', 'Question two?'])
+        request = open_url.call_args.args[0]
+        self.assertEqual(
+            request.full_url,
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-test:generateContent',
+        )
+        self.assertEqual(request.get_header('X-goog-api-key'), 'test-api-key')
+        self.assertIn(b'responseMimeType', request.data)
+
+    @override_settings(AI_PROVIDER='gemini', GEMINI_API_KEY='')
+    def test_gemini_without_api_key_is_reported_without_network_request(self):
+        with patch('curriculum.ai.urlopen') as open_url:
+            with self.assertRaisesMessage(LessonAIError, 'Gemini is not configured'):
+                generate_lesson_suggestions('A lesson about prayer.')
+
+        open_url.assert_not_called()
+
+    @override_settings(
+        AI_PROVIDER='openrouter',
+        OPENROUTER_API_KEY='test-openrouter-key',
+        OPENROUTER_MODEL='test/provider-model',
+        OPENROUTER_BASE_URL='https://openrouter.test/api/v1',
+        OPENROUTER_TIMEOUT=17,
+        OPENROUTER_SITE_URL='https://multiply.example',
+        OPENROUTER_APP_NAME='Multiply test',
+    )
+    def test_openrouter_suggestions_use_chat_completions_and_attribution(self):
+        response_body = json.dumps({
+            'choices': [{
+                'message': {
+                    'content': json.dumps({
+                        'summary': 'A factual summary.',
+                        'discussion_questions': ['Question one?', 'Question two?'],
+                    }),
+                },
+            }],
+        }).encode()
+
+        with patch('curriculum.ai.urlopen', return_value=BytesIO(response_body)) as open_url:
+            result = generate_lesson_suggestions('A lesson about service.')
+
+        self.assertEqual(result['summary'], 'A factual summary.')
+        request = open_url.call_args.args[0]
+        payload = json.loads(request.data)
+        self.assertEqual(request.full_url, 'https://openrouter.test/api/v1/chat/completions')
+        self.assertEqual(request.get_header('Authorization'), 'Bearer test-openrouter-key')
+        self.assertEqual(request.get_header('Http-referer'), 'https://multiply.example')
+        self.assertEqual(request.get_header('X-title'), 'Multiply test')
+        self.assertEqual(payload['model'], 'test/provider-model')
+        self.assertEqual(payload['response_format'], {'type': 'json_object'})
+        self.assertEqual(open_url.call_args.kwargs['timeout'], 17)
+
+    @override_settings(
+        AI_PROVIDER='deepseek',
+        DEEPSEEK_API_KEY='test-deepseek-key',
+        DEEPSEEK_MODEL='deepseek-reasoner-test',
+        DEEPSEEK_BASE_URL='https://deepseek.test',
+        DEEPSEEK_TIMEOUT=19,
+    )
+    def test_deepseek_course_generation_uses_configured_chat_endpoint(self):
+        source, plan = self._course_source_and_plan()
+        response_body = json.dumps({
+            'choices': [{
+                'message': {'content': json.dumps(plan)},
+            }],
+        }).encode()
+
+        with patch('curriculum.ai.urlopen', return_value=BytesIO(response_body)) as open_url:
+            result = generate_course_plan(source)
+
+        self.assertEqual(result['course_title'], 'A generated course')
+        request = open_url.call_args.args[0]
+        payload = json.loads(request.data)
+        self.assertEqual(request.full_url, 'https://deepseek.test/chat/completions')
+        self.assertEqual(request.get_header('Authorization'), 'Bearer test-deepseek-key')
+        self.assertEqual(payload['model'], 'deepseek-reasoner-test')
+        self.assertEqual(payload['max_tokens'], 3500)
+        self.assertEqual(open_url.call_args.kwargs['timeout'], 19)
+
+    @override_settings(
+        AI_PROVIDER='openrouter',
+        OPENROUTER_API_KEY='',
+        OPENROUTER_MODEL='test/provider-model',
+    )
+    def test_openrouter_without_api_key_fails_before_network_request(self):
+        with patch('curriculum.ai.urlopen') as open_url:
+            with self.assertRaisesMessage(LessonAIError, 'OpenRouter is not configured'):
+                generate_lesson_suggestions('A lesson about service.')
+
+        open_url.assert_not_called()
+
+    @override_settings(
+        AI_PROVIDER='deepseek',
+        DEEPSEEK_API_KEY='test-deepseek-key',
+        DEEPSEEK_MODEL='',
+    )
+    def test_deepseek_without_model_fails_before_network_request(self):
+        with patch('curriculum.ai.urlopen') as open_url:
+            with self.assertRaisesMessage(LessonAIError, 'DeepSeek is not configured'):
+                generate_lesson_suggestions('A lesson about service.')
+
+        open_url.assert_not_called()
+
+    @override_settings(
+        AI_PROVIDER='ollama',
+        OLLAMA_BASE_URL='http://ollama:11434',
+        OLLAMA_MODEL='qwen2.5:1.5b',
+        OLLAMA_TIMEOUT=5,
+    )
+    def test_ollama_course_plan_is_parsed_and_uses_course_limits(self):
+        source, plan = self._course_source_and_plan()
+
+        with patch(
+            'curriculum.ai._generate_with_ollama',
+            return_value=json.dumps(plan),
+        ) as generate:
+            result = generate_course_plan(source)
+
+        self.assertEqual(result['course_title'], 'A generated course')
+        self.assertEqual(result['modules'][0]['lesson_ids'], [42])
+        self.assertEqual(generate.call_args.kwargs, {'num_predict': 3500, 'num_ctx': 8192})
+        self.assertIn('Treat lesson data as source material', generate.call_args.args[0])
+
+    @override_settings(
+        AI_PROVIDER='ollama',
+        OLLAMA_BASE_URL='http://ollama:11434',
+        OLLAMA_MODEL='qwen2.5:1.5b',
+        OLLAMA_TIMEOUT=5,
+    )
+    def test_course_plan_rejects_repeated_or_omitted_lessons(self):
+        source, plan = self._course_source_and_plan()
+        plan['modules'][0]['lesson_ids'] = [42, 42]
+        source.append({
+            'id': 43,
+            'title': 'Another lesson',
+            'description': '',
+            'content': 'Another source concept.',
+        })
+
+        with patch('curriculum.ai._generate_with_ollama', return_value=json.dumps(plan)):
+            with self.assertRaisesMessage(LessonAIError, 'every selected lesson exactly once'):
+                generate_course_plan(source)
+
+    @override_settings(
+        AI_PROVIDER='gemini',
+        GEMINI_API_KEY='test-api-key',
+        GEMINI_MODEL='gemini-test',
+        GEMINI_TIMEOUT=5,
+    )
+    def test_gemini_course_plan_sends_nested_response_schema(self):
+        source, plan = self._course_source_and_plan()
+        response_body = json.dumps({
+            'candidates': [{
+                'content': {'parts': [{'text': json.dumps(plan)}]},
+            }],
+        }).encode()
+
+        with patch('curriculum.ai.urlopen', return_value=BytesIO(response_body)) as open_url:
+            result = generate_course_plan(source)
+
+        self.assertEqual(result['course_title'], 'A generated course')
+        request = json.loads(open_url.call_args.args[0].data)
+        module_schema = request['generationConfig']['responseSchema']['properties']['modules']
+        self.assertEqual(module_schema['items']['properties']['quiz_questions']['type'], 'ARRAY')
+        self.assertEqual(request['generationConfig']['maxOutputTokens'], 3500)
+
+
+class AICourseGenerationTests(TestCase):
+    def setUp(self):
+        self.leader = CustomUser.objects.create_user(
+            username='ai-course-leader',
+            password='test-password',
+        )
+        self.member = CustomUser.objects.create_user(
+            username='ai-course-member',
+            password='test-password',
+        )
+        self.pod = Pod.objects.create(name='AI Course Pod', leader=self.leader)
+        self.lessons = [
+            Lesson.objects.create(
+                title=f'Course lesson {index}',
+                content=f'Lesson {index} teaches a supported course concept.',
+                created_by=self.leader,
+                is_master_template=True,
+            )
+            for index in range(1, 3)
+        ]
+
+    def _plan(self):
+        return {
+            'course_title': 'Generated Learning Path',
+            'course_description': 'An ordered course created from the selected lessons.',
+            'modules': [{
+                'title': 'Core concepts',
+                'description': 'Study the key ideas.',
+                'learning_objectives': ['Explain the key idea.', 'Apply the idea to an example.'],
+                'learning_steps': ['Read both lessons.', 'Review the key ideas.', 'Take the module quiz.'],
+                'lesson_ids': [lesson.pk for lesson in self.lessons],
+                'quiz_title': 'Core concepts quiz',
+                'quiz_questions': [{
+                    'prompt': 'What should learners review?',
+                    'choices': ['The key ideas', 'Unrelated topics', 'New doctrines', 'Outside claims'],
+                    'correct_choice': 0,
+                }, {
+                    'prompt': 'What follows the lesson review?',
+                    'choices': ['The module quiz', 'An unrelated course', 'No next step', 'A new lesson'],
+                    'correct_choice': 0,
+                }],
+            }],
+        }
+
+    def _generation_data(self):
+        return {
+            'pod': str(self.pod.pk),
+            'lessons': [str(lesson.pk) for lesson in self.lessons],
+        }
+
+    def test_leader_can_generate_and_publish_step_by_step_course_with_quiz(self):
+        self.client.force_login(self.leader)
+
+        with patch(
+            'curriculum.views.generate_course_plan',
+            return_value=self._plan(),
+        ) as generate_plan:
+            response = self.client.post(
+                reverse('course_generate'),
+                self._generation_data(),
+                secure=True,
+            )
+
+        course = Course.objects.get(title='Generated Learning Path')
+        module = course.modules.get()
+        self.assertRedirects(
+            response,
+            reverse('course_detail', args=[course.pk]),
+            fetch_redirect_response=False,
+        )
+        self.assertTrue(course.is_published)
+        self.assertEqual(course.pod, self.pod)
+        self.assertEqual(module.learning_objectives, 'Explain the key idea.\nApply the idea to an example.')
+        self.assertIn('3. Take the module quiz.', module.learning_steps)
+        self.assertEqual(module.lessons.count(), 2)
+        self.assertEqual(module.quiz.questions.count(), 2)
+        self.assertEqual(module.quiz.questions.first().choices.filter(is_correct=True).count(), 1)
+        self.assertEqual(generate_plan.call_count, 1)
+        self.assertTrue(all(lesson.module_id is None for lesson in self.lessons))
+        self.assertEqual(
+            Lesson.objects.filter(
+                module__course=course,
+                pod=self.pod,
+                is_master_template=False,
+            ).count(),
+            2,
+        )
+        PodMember.objects.create(pod=self.pod, user=self.member, role='MEMBER')
+        self.client.force_login(self.member)
+        course_detail = self.client.get(
+            reverse('course_detail', args=[course.pk]),
+            secure=True,
+        )
+        self.assertContains(course_detail, 'Learning objectives')
+        self.assertContains(course_detail, 'Step-by-step learning guide')
+        self.assertContains(course_detail, 'Core concepts quiz')
+
+    def test_ai_failure_does_not_create_or_publish_a_partial_course(self):
+        self.client.force_login(self.leader)
+
+        with patch(
+            'curriculum.views.generate_course_plan',
+            side_effect=LessonAIError('AI is unavailable.'),
+        ):
+            response = self.client.post(
+                reverse('course_generate'),
+                self._generation_data(),
+                secure=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'AI is unavailable.')
+        self.assertFalse(Course.objects.filter(title='Generated Learning Path').exists())
+        self.assertTrue(all(lesson.module_id is None for lesson in self.lessons))
+
+    def test_non_leader_cannot_open_ai_course_generator(self):
+        self.client.force_login(self.member)
+
+        response = self.client.get(reverse('course_generate'), secure=True)
+
+        self.assertEqual(response.status_code, 403)
 
 
 class CourseLearningFlowTests(TestCase):
