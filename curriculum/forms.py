@@ -133,9 +133,17 @@ class CourseForm(forms.ModelForm):
 
 
 class CourseGenerationForm(forms.Form):
-    MAX_LESSONS = 12
-    MAX_SOURCE_CHARACTERS = 14000
+    MAX_LESSONS = 24
+    MAX_SOURCE_CHARACTERS = 20000
 
+    title = forms.CharField(
+        max_length=200,
+        label='Course title',
+        widget=forms.TextInput(attrs={
+            'class': 'w-full rounded-lg border border-gray-300 p-2.5',
+            'placeholder': 'e.g., Foundations of Discipleship',
+        }),
+    )
     pod = forms.ModelChoiceField(
         queryset=Pod.objects.none(),
         required=False,
@@ -145,7 +153,7 @@ class CourseGenerationForm(forms.Form):
     lessons = forms.ModelMultipleChoiceField(
         queryset=Lesson.objects.none(),
         widget=forms.CheckboxSelectMultiple,
-        help_text='Select up to 12 unassigned lessons. Their content will be sent to the configured AI provider for analysis.',
+        help_text='Select up to 24 unassigned lessons. Their content will be sent to the configured AI provider for analysis.',
     )
 
     def __init__(self, *args, **kwargs):

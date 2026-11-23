@@ -47,7 +47,7 @@ class CurriculumVisibilityTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, 'Upload New Lesson')
-        self.assertNotContains(response, 'Generate Course with AI')
+        self.assertNotContains(response, 'Create Progressive Course')
 
     def test_pod_leader_sees_upload_lesson_action(self):
         self.client.force_login(self.leader)
@@ -56,7 +56,7 @@ class CurriculumVisibilityTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Upload New Lesson')
-        self.assertContains(response, 'Generate Course with AI')
+        self.assertContains(response, 'Create Progressive Course')
 
     def test_pod_course_lessons_appear_in_curriculum_before_publication(self):
         course = Course.objects.create(
@@ -522,7 +522,7 @@ class LocalLessonAITests(TestCase):
         self.assertEqual(request.full_url, 'https://deepseek.test/chat/completions')
         self.assertEqual(request.get_header('Authorization'), 'Bearer test-deepseek-key')
         self.assertEqual(payload['model'], 'deepseek-reasoner-test')
-        self.assertEqual(payload['max_tokens'], 3500)
+        self.assertEqual(payload['max_tokens'], 6000)
         self.assertEqual(open_url.call_args.kwargs['timeout'], 19)
 
     @override_settings(
@@ -566,7 +566,7 @@ class LocalLessonAITests(TestCase):
 
         self.assertEqual(result['course_title'], 'A generated course')
         self.assertEqual(result['modules'][0]['lesson_ids'], [42])
-        self.assertEqual(generate.call_args.kwargs, {'num_predict': 3500, 'num_ctx': 8192})
+        self.assertEqual(generate.call_args.kwargs, {'num_predict': 6000, 'num_ctx': 16384})
         self.assertIn('Treat lesson data as source material', generate.call_args.args[0])
 
     @override_settings(
@@ -610,7 +610,7 @@ class LocalLessonAITests(TestCase):
         request = json.loads(open_url.call_args.args[0].data)
         module_schema = request['generationConfig']['responseSchema']['properties']['modules']
         self.assertEqual(module_schema['items']['properties']['quiz_questions']['type'], 'ARRAY')
-        self.assertEqual(request['generationConfig']['maxOutputTokens'], 3500)
+        self.assertEqual(request['generationConfig']['maxOutputTokens'], 6000)
 
 
 class AICourseGenerationTests(TestCase):
@@ -659,6 +659,7 @@ class AICourseGenerationTests(TestCase):
 
     def _generation_data(self):
         return {
+            'title': 'Progressive discipleship course',
             'pod': str(self.pod.pk),
             'lessons': [str(lesson.pk) for lesson in self.lessons],
         }
@@ -671,12 +672,12 @@ class AICourseGenerationTests(TestCase):
             return_value=self._plan(),
         ) as generate_plan:
             response = self.client.post(
-                reverse('course_generate'),
+                reverse('course_create'),
                 self._generation_data(),
                 secure=True,
             )
 
-        course = Course.objects.get(title='Generated Learning Path')
+        course = Course.objects.get(title='Progressive discipleship course')
         module = course.modules.get()
         self.assertRedirects(
             response,
@@ -691,6 +692,10 @@ class AICourseGenerationTests(TestCase):
         self.assertEqual(module.quiz.questions.count(), 2)
         self.assertEqual(module.quiz.questions.first().choices.filter(is_correct=True).count(), 1)
         self.assertEqual(generate_plan.call_count, 1)
+        self.assertEqual(
+            generate_plan.call_args.kwargs['course_title'],
+            'Progressive discipleship course',
+        )
         self.assertTrue(all(lesson.module_id is None for lesson in self.lessons))
         self.assertEqual(
             Lesson.objects.filter(
@@ -726,7 +731,7 @@ class AICourseGenerationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'AI is unavailable.')
         self.assertContains(response, 'Check the AI settings or try again.')
-        self.assertFalse(Course.objects.filter(title='Generated Learning Path').exists())
+        self.assertFalse(Course.objects.filter(title='Progressive discipleship course').exists())
         self.assertTrue(all(lesson.module_id is None for lesson in self.lessons))
 
     def test_non_leader_cannot_open_ai_course_generator(self):
@@ -819,39 +824,24 @@ class CourseLearningFlowTests(TestCase):
         self.assertContains(response, 'Mark lesson complete')
         self.assertContains(response, reverse('lesson_detail', args=[self.lesson_two.pk]))
 
-    def test_leader_can_create_a_course_and_module(self):
+    def test_course_creation_starts_progressive_builder_and_leader_can_add_module(self):
         self.client.force_login(self.leader)
-        response = self.client.post(
-            reverse('course_create'),
-            {
-                'title': 'New Foundations Course',
-                'description': 'Course summary',
-                'pod': str(self.leader_pod.pk),
-                'order': '1',
-                'is_published': 'on',
-            },
-            secure=True,
-        )
-
-        new_course = Course.objects.get(title='New Foundations Course')
-        self.assertRedirects(
-            response,
-            reverse('course_detail', args=[new_course.pk]),
-            fetch_redirect_response=False,
-        )
-        self.assertEqual(new_course.pod, self.leader_pod)
+        response = self.client.get(reverse('course_create'), secure=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Step 1: Name your course')
+        self.assertContains(response, 'Step 3: Select lessons')
 
         module_response = self.client.post(
-            reverse('module_create', args=[new_course.pk]),
+            reverse('module_create', args=[self.course.pk]),
             {'title': 'First Module', 'description': '', 'order': '1'},
             secure=True,
         )
         self.assertRedirects(
             module_response,
-            reverse('course_detail', args=[new_course.pk]),
+            reverse('course_detail', args=[self.course.pk]),
             fetch_redirect_response=False,
         )
-        self.assertTrue(new_course.modules.filter(title='First Module').exists())
+        self.assertTrue(self.course.modules.filter(title='First Module').exists())
 
     def test_learner_can_render_quiz_and_course_manager_cannot_be_used_by_learner(self):
         LessonProgress.objects.create(user=self.learner, lesson=self.lesson_one)

@@ -132,6 +132,17 @@ class PodBookReviewForm(forms.Form):
             self.fields['week_number'].initial = initial_week
 
 
+class PodBookReviewCommentForm(forms.Form):
+    body = forms.CharField(
+        max_length=2000,
+        widget=forms.Textarea(attrs={
+            'rows': 2,
+            'placeholder': 'Write a comment or reply...',
+        }),
+    )
+    parent_id = forms.IntegerField(required=False, widget=forms.HiddenInput)
+
+
 class LaunchApprenticePodForm(forms.Form):
     """
     Form used by a Mentor to deploy an Apprentice to lead a new branch Pod.

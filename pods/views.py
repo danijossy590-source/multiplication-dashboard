@@ -9,6 +9,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.http import FileResponse, HttpResponseForbidden
 from django.utils import timezone
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 from accounts.utils import notify_user
 from curriculum.models import Lesson
@@ -16,6 +17,7 @@ from .models import (
     ApprenticeOversight,
     Pod,
     PodBook,
+    PodBookReviewComment,
     PodBookReview,
     PodMeeting,
     PodMember,
@@ -28,6 +30,7 @@ from .forms import (
     JoinPodForm,
     LaunchApprenticePodForm,
     PodBookForm,
+    PodBookReviewCommentForm,
     PodBookReviewForm,
     PodForm,
     PodMeetingForm,
@@ -51,6 +54,19 @@ def user_has_pod_access(user, pod):
     if ApprenticeOversight.objects.filter(apprentice_pod=pod, mentor=user).exists():
         return True
     return False
+
+
+def user_can_participate_in_pod(user, pod):
+    if not user.is_authenticated:
+        return False
+    return (
+        user.is_staff
+        or user.is_superuser
+        or pod.leader_id == user.id
+        or PodMember.objects.filter(pod=pod, user=user).exists()
+        or PodMentor.objects.filter(pod=pod, mentor=user).exists()
+    )
+
 
 @login_required
 def pod_list_view(request):
@@ -161,7 +177,7 @@ def pod_detail_view(request, pod_id):
     members = pod.memberships.select_related('user').all()
 
     can_manage_members = is_leader or is_admin
-    can_participate = is_admin or is_leader or is_member or is_mentor
+    can_participate = user_can_participate_in_pod(request.user, pod)
     add_member_form = AddMemberForm()
     assign_mentors_form = AssignMentorsForm(
         initial={'mentors': pod.mentors.values_list('mentor_id', flat=True)}
@@ -186,17 +202,54 @@ def pod_detail_view(request, pod_id):
                 available_weeks=available_weeks,
                 initial_week=current_week,
             )
-        reviews_by_week = {}
-        reviews = book.reviews.filter(
+        reviews = list(book.reviews.filter(
             week_number__lte=available_week_count,
-        ).select_related('user')
+        ).select_related('user'))
+        reviews_by_week = {}
+        reviews_by_id = {review.pk: review for review in reviews}
+        reviews_by_week_user = {}
         for review in reviews:
             reviews_by_week.setdefault(review.week_number, []).append(review)
+            reviews_by_week_user[(review.week_number, review.user_id)] = review
+            review.comment_threads = []
+        comments = PodBookReviewComment.objects.filter(
+            review__in=reviews,
+        ).select_related('author', 'parent').order_by('created_at')
+        comments_by_id = {}
+        for comment in comments:
+            comment.thread_replies = []
+            if comment.parent_id and comment.parent_id in comments_by_id:
+                comments_by_id[comment.parent_id].thread_replies.append(comment)
+            else:
+                review = reviews_by_id.get(comment.review_id)
+                if review:
+                    review.comment_threads.append(comment)
+            comments_by_id[comment.pk] = comment
         book_weeks = [
             {
                 'number': week,
                 'due_on': book.started_on + timedelta(days=week * 7),
                 'reviews': reviews_by_week.get(week, []),
+                'reviewed_count': sum(
+                    (week, member.user_id) in reviews_by_week_user
+                    for member in members
+                ),
+                'member_progress': [
+                    {
+                        'user': member.user,
+                        'review': reviews_by_week_user.get((week, member.user_id)),
+                        'status': (
+                            'reviewed'
+                            if (week, member.user_id) in reviews_by_week_user
+                            else (
+                                'behind'
+                                if book.started_on + timedelta(days=week * 7) <= timezone.localdate()
+                                else 'in_progress'
+                            )
+                        ),
+                    }
+                    for member in members
+                ],
             }
             for week in available_weeks
         ]
@@ -332,6 +385,44 @@ def pod_book_file_view(request, pod_id, book_id):
         as_attachment=True,
         filename=Path(book.document.name).name,
     )
+
+
+@login_required
+@require_POST
+def pod_book_review_comment_view(request, pod_id, book_id, review_id):
+    book = get_object_or_404(
+        PodBook,
+        pk=book_id,
+        pod_id=pod_id,
+        is_current=True,
+    )
+    if not user_has_pod_access(request.user, book.pod):
+        return HttpResponseForbidden('You do not have permission to access this Pod book.')
+    if not user_can_participate_in_pod(request.user, book.pod):
+        return HttpResponseForbidden('Only Pod participants can comment on book reviews.')
+
+    review = get_object_or_404(PodBookReview, pk=review_id, book=book)
+    form = PodBookReviewCommentForm(request.POST)
+    if form.is_valid():
+        parent = None
+        parent_id = form.cleaned_data['parent_id']
+        if parent_id:
+            parent = get_object_or_404(
+                PodBookReviewComment,
+                pk=parent_id,
+                review=review,
+            )
+        PodBookReviewComment.objects.create(
+            review=review,
+            parent=parent,
+            author=request.user,
+            body=form.cleaned_data['body'],
+        )
+        messages.success(request, 'Your comment was added to the book review.')
+    else:
+        messages.error(request, 'Enter a comment before submitting.')
+
+    return redirect(f"{reverse('pod_detail', args=[pod_id])}#book-review-{review.pk}")
 
 
 @login_required

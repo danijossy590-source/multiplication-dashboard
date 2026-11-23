@@ -8,9 +8,9 @@
     <section class="rounded-2xl bg-white p-6 shadow-sm sm:p-8">
         <p class="text-xs font-bold uppercase tracking-widest text-violet-700">AI course builder</p>
         <h1 class="mt-2 text-2xl font-bold text-gray-900 sm:text-3xl">Build a step-by-step course</h1>
-        <p class="mt-2 max-w-3xl text-sm leading-6 text-gray-600">Choose unassigned lessons. AI will group and sequence them into modules, write learning objectives and step-by-step guidance, and create a quiz for each module.</p>
+        <p class="mt-2 max-w-3xl text-sm leading-6 text-gray-600">Name your course, choose the lessons you want to teach, and AI will organize them into a progressive learning path with focused modules, learning objectives, practical steps, and a quiz for every module.</p>
         <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-            The generated course is published immediately. AI uses the selected lesson text and the configured provider, and does not rewrite the original lessons. Review the published course and quizzes afterward.
+            The course is published immediately. AI uses the selected lesson text and the configured provider, and does not rewrite the original lessons. Review the course and quizzes afterward.
         </div>
 
         <form id="course-generation-form" method="post" class="mt-6 space-y-5">
@@ -19,13 +19,18 @@
             <div class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">{{ form.non_field_errors }}</div>
             {% endif %}
             <div>
-                <label for="{{ form.pod.id_for_label }}" class="font-semibold text-gray-800">Course audience</label>
+                <label for="{{ form.title.id_for_label }}" class="font-semibold text-gray-800">Step 1: Name your course</label>
+                {{ form.title }}
+                {{ form.title.errors }}
+            </div>
+            <div>
+                <label for="{{ form.pod.id_for_label }}" class="font-semibold text-gray-800">Step 2: Choose the course audience</label>
                 {{ form.pod }}
                 {% if form.pod.help_text %}<p class="mt-1 text-xs text-gray-500">{{ form.pod.help_text }}</p>{% endif %}
                 {{ form.pod.errors }}
             </div>
             <fieldset>
-                <legend class="font-semibold text-gray-800">Step 1: Select lessons</legend>
+                <legend class="font-semibold text-gray-800">Step 3: Select lessons</legend>
                 <p class="mt-1 text-xs text-gray-500">{{ form.lessons.help_text }}</p>
                 <div class="mt-3 max-h-96 space-y-2 overflow-y-auto rounded-lg border border-gray-200 p-4">
                     {% for checkbox in form.lessons %}
@@ -40,7 +45,7 @@
                 {{ form.lessons.errors }}
             </fieldset>
             <button id="generate-course-button" type="submit" class="w-full rounded-lg bg-violet-700 px-5 py-3 font-semibold text-white hover:bg-violet-800 disabled:cursor-wait disabled:opacity-70">
-                Generate and publish course
+                Create progressive course
             </button>
         </form>
     </section>

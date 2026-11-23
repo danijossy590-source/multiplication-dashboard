@@ -213,3 +213,34 @@ class PodBookReview(models.Model):
 
     def __str__(self):
         return f'{self.user.username}: {self.book.title} (week {self.week_number})'
+
+
+class PodBookReviewComment(models.Model):
+    """A Pod participant's comment or nested reply on a weekly review."""
+    review = models.ForeignKey(
+        PodBookReview,
+        on_delete=models.CASCADE,
+        related_name='comments',
+    )
+    parent = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        related_name='replies',
+        blank=True,
+        null=True,
+    )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='pod_book_review_comments',
+        blank=True,
+        null=True,
+    )
+    body = models.TextField(max_length=2000)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f'Comment on {self.review}'

@@ -25,7 +25,6 @@ from .models import (
     QuizQuestion,
 )
 from .forms import (
-    CourseForm,
     CourseGenerationForm,
     LessonForm,
     ModuleForm,
@@ -217,35 +216,13 @@ def course_detail_view(request, course_id):
     return render(request, 'curriculum/course_detail.html', context)
 
 
-@login_required
-def course_create_view(request):
+def _course_builder_view(request):
     if not (
         request.user.is_staff
         or request.user.is_superuser
         or request.user.leading_pods.exists()
     ):
         return HttpResponseForbidden('Only admins and pod leaders can create courses.')
-    if request.method == 'POST':
-        form = CourseForm(request.POST, user=request.user)
-        if form.is_valid():
-            course = form.save(commit=False)
-            course.created_by = request.user
-            course.save()
-            messages.success(request, f'Course "{course.title}" created.')
-            return redirect('course_detail', course_id=course.pk)
-    else:
-        form = CourseForm(user=request.user)
-    return render(request, 'curriculum/course_form.html', {'form': form})
-
-
-@login_required
-def course_generate_view(request):
-    if not (
-        request.user.is_staff
-        or request.user.is_superuser
-        or request.user.leading_pods.exists()
-    ):
-        return HttpResponseForbidden('Only admins and pod leaders can generate courses.')
 
     form = CourseGenerationForm(
         request.POST if request.method == 'POST' else None,
@@ -263,7 +240,10 @@ def course_generate_view(request):
             for lesson in selected_lessons
         ]
         try:
-            plan = generate_course_plan(lesson_sources)
+            plan = generate_course_plan(
+                lesson_sources,
+                course_title=form.cleaned_data['title'],
+            )
         except LessonAIError as error:
             form.add_error(None, f'{error} Check the AI settings or try again.')
         else:
@@ -271,7 +251,7 @@ def course_generate_view(request):
             selected_by_id = {lesson.pk: lesson for lesson in selected_lessons}
             with transaction.atomic():
                 course = Course.objects.create(
-                    title=plan['course_title'],
+                    title=form.cleaned_data['title'],
                     description=plan['course_description'],
                     pod=pod,
                     created_by=request.user,
@@ -320,10 +300,20 @@ def course_generate_view(request):
                             for choice_order, choice in enumerate(question_plan['choices'])
                         ])
 
-            messages.success(request, f'Course "{course.title}" was generated and published.')
+            messages.success(request, f'Course "{course.title}" was created and published.')
             return redirect('course_detail', course_id=course.pk)
 
     return render(request, 'curriculum/course_generate.html', {'form': form})
+
+
+@login_required
+def course_create_view(request):
+    return _course_builder_view(request)
+
+
+@login_required
+def course_generate_view(request):
+    return _course_builder_view(request)
 
 
 @login_required

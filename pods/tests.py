@@ -1,4 +1,5 @@
 import tempfile
+from datetime import timedelta
 from pathlib import Path
 
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -13,6 +14,7 @@ from .models import (
     ApprenticeOversight,
     Pod,
     PodBook,
+    PodBookReviewComment,
     PodBookReview,
     PodMeeting,
     PodMember,
@@ -228,6 +230,102 @@ class PodPageTests(TestCase):
         review = PodBookReview.objects.get(book=book, user=self.member, week_number=1)
         self.assertEqual(review.review, 'My updated first-week thoughts.')
         self.assertEqual(PodBookReview.objects.filter(book=book, user=self.member).count(), 1)
+
+    def test_pod_members_can_track_lagging_reviews_and_reply_to_review_threads(self):
+        media_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(media_directory.cleanup)
+        settings_override = override_settings(MEDIA_ROOT=media_directory.name)
+        settings_override.enable()
+        self.addCleanup(settings_override.disable)
+        lagging_member = CustomUser.objects.create_user(
+            username='pod-lagging-member',
+            password='test-password',
+        )
+        PodMember.objects.create(pod=self.pod, user=lagging_member, role='MEMBER')
+        book = PodBook.objects.create(
+            pod=self.pod,
+            title='A Book for the Pod',
+            document=SimpleUploadedFile('pod-book.pdf', b'%PDF-book-content'),
+            duration_weeks=3,
+            started_on=timezone.localdate() - timedelta(days=8),
+            assigned_by=self.leader,
+        )
+        review = PodBookReview.objects.create(
+            book=book,
+            user=self.member,
+            week_number=1,
+            review='This chapter helped me understand the topic.',
+        )
+        comment_url = reverse(
+            'pod_book_review_comment',
+            args=[self.pod.pk, book.pk, review.pk],
+        )
+        self.client.force_login(self.member)
+        comment_response = self.client.post(
+            comment_url,
+            {'body': 'Thanks for sharing this.'},
+            secure=True,
+        )
+        comment = PodBookReviewComment.objects.get(review=review)
+
+        self.client.force_login(self.leader)
+        reply_response = self.client.post(
+            comment_url,
+            {'body': 'Glad it was helpful.', 'parent_id': str(comment.pk)},
+            secure=True,
+        )
+        self.assertEqual(comment_response.status_code, 302)
+        self.assertEqual(reply_response.status_code, 302)
+        self.assertTrue(PodBookReviewComment.objects.filter(parent=comment).exists())
+
+        self.client.force_login(lagging_member)
+        detail_response = self.client.get(
+            reverse('pod_detail', args=[self.pod.pk]),
+            secure=True,
+        )
+        week_progress = {
+            entry['user'].username: entry['status']
+            for entry in detail_response.context['book_weeks'][0]['member_progress']
+        }
+        self.assertEqual(week_progress['pod-member'], 'reviewed')
+        self.assertEqual(week_progress['pod-lagging-member'], 'behind')
+        self.assertContains(detail_response, 'This chapter helped me understand the topic.')
+        self.assertContains(detail_response, 'Thanks for sharing this.')
+        self.assertContains(detail_response, 'Glad it was helpful.')
+
+    def test_oversight_mentor_cannot_comment_on_book_reviews(self):
+        media_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(media_directory.cleanup)
+        settings_override = override_settings(MEDIA_ROOT=media_directory.name)
+        settings_override.enable()
+        self.addCleanup(settings_override.disable)
+        book = PodBook.objects.create(
+            pod=self.pod,
+            title='A Book for the Pod',
+            document=SimpleUploadedFile('pod-book.pdf', b'%PDF-book-content'),
+            assigned_by=self.leader,
+        )
+        review = PodBookReview.objects.create(
+            book=book,
+            user=self.member,
+            week_number=1,
+            review='A weekly review.',
+        )
+        mentor = CustomUser.objects.create_user(
+            username='pod-oversight-reader',
+            password='test-password',
+        )
+        ApprenticeOversight.objects.create(mentor=mentor, apprentice_pod=self.pod)
+        self.client.force_login(mentor)
+
+        response = self.client.post(
+            reverse('pod_book_review_comment', args=[self.pod.pk, book.pk, review.pk]),
+            {'body': 'This should remain read-only.'},
+            secure=True,
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(PodBookReviewComment.objects.exists())
 
     def test_only_pod_participants_can_download_book(self):
         media_directory = tempfile.TemporaryDirectory()
