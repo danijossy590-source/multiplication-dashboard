@@ -2,6 +2,9 @@ import secrets
 
 from django.db import models
 from django.conf import settings
+from django.core.validators import MaxValueValidator, MinValueValidator
+from django.db.models import Q
+from django.utils import timezone
 
 class Pod(models.Model):
     """
@@ -151,3 +154,62 @@ class PodMeeting(models.Model):
 
     def __str__(self):
         return f"{self.title} - {self.pod.name}"
+
+
+class PodBook(models.Model):
+    """A book assignment and reading schedule for a Pod."""
+    pod = models.ForeignKey(Pod, on_delete=models.CASCADE, related_name='reading_books')
+    title = models.CharField(max_length=200)
+    document = models.FileField(upload_to='pods/books/')
+    duration_weeks = models.PositiveSmallIntegerField(
+        default=4,
+        validators=[MinValueValidator(1), MaxValueValidator(52)],
+    )
+    started_on = models.DateField(default=timezone.localdate)
+    assigned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='assigned_pod_books',
+    )
+    is_current = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['pod'],
+                condition=Q(is_current=True),
+                name='unique_pod_current_book',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.title} - {self.pod.name}'
+
+
+class PodBookReview(models.Model):
+    """A participant's weekly review of a Pod book."""
+    book = models.ForeignKey(PodBook, on_delete=models.CASCADE, related_name='reviews')
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='pod_book_reviews',
+    )
+    week_number = models.PositiveSmallIntegerField()
+    review = models.TextField(max_length=5000)
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['week_number', 'submitted_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['book', 'user', 'week_number'],
+                name='unique_pod_book_week_review',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.user.username}: {self.book.title} (week {self.week_number})'

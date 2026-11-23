@@ -92,6 +92,46 @@ class PodMeetingForm(forms.Form):
     meeting_url = forms.URLField(required=False)
 
 
+class PodBookForm(forms.Form):
+    title = forms.CharField(max_length=200)
+    document = forms.FileField(
+        help_text='Upload a PDF or Word document (.doc or .docx), up to 25 MB.',
+    )
+    duration_weeks = forms.IntegerField(
+        min_value=1,
+        max_value=52,
+        initial=4,
+        label='Reading schedule (weeks)',
+    )
+
+    def clean_document(self):
+        document = self.cleaned_data['document']
+        if document.size > 25 * 1024 * 1024:
+            raise forms.ValidationError('Book file must be 25 MB or smaller.')
+        if not document.name.lower().endswith(('.pdf', '.doc', '.docx')):
+            raise forms.ValidationError('Upload a PDF or Word document (.doc or .docx).')
+        return document
+
+
+class PodBookReviewForm(forms.Form):
+    week_number = forms.ChoiceField(label='Reading week')
+    review = forms.CharField(
+        max_length=5000,
+        widget=forms.Textarea(attrs={
+            'rows': 4,
+            'placeholder': 'Share what stood out to you this week...',
+        }),
+    )
+
+    def __init__(self, *args, available_weeks, initial_week=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['week_number'].choices = [
+            (week, f'Week {week}') for week in available_weeks
+        ]
+        if initial_week in available_weeks:
+            self.fields['week_number'].initial = initial_week
+
+
 class LaunchApprenticePodForm(forms.Form):
     """
     Form used by a Mentor to deploy an Apprentice to lead a new branch Pod.

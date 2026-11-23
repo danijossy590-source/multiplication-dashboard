@@ -5,10 +5,20 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.test import override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from accounts.models import CustomUser
 from curriculum.models import Course, Lesson, Module
-from .models import ApprenticeOversight, Pod, PodMeeting, PodMember, PodMessage, PodMentor
+from .models import (
+    ApprenticeOversight,
+    Pod,
+    PodBook,
+    PodBookReview,
+    PodMeeting,
+    PodMember,
+    PodMessage,
+    PodMentor,
+)
 
 
 class PodPageTests(TestCase):
@@ -135,6 +145,117 @@ class PodPageTests(TestCase):
         self.assertTrue(PodMessage.objects.filter(pod=self.pod, author=self.member, body='See you all soon!').exists())
         self.assertTrue(PodMeeting.objects.filter(pod=self.pod, title='Weekly check-in').exists())
 
+    def test_pod_leader_can_assign_supported_book_file_and_reading_duration(self):
+        media_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(media_directory.cleanup)
+        settings_override = override_settings(MEDIA_ROOT=media_directory.name)
+        settings_override.enable()
+        self.addCleanup(settings_override.disable)
+        self.client.force_login(self.leader)
+
+        response = self.client.post(
+            reverse('pod_detail', args=[self.pod.pk]),
+            {
+                'assign_book': '1',
+                'title': 'A Book for the Pod',
+                'duration_weeks': '6',
+                'document': SimpleUploadedFile(
+                    'pod-book.pdf',
+                    b'%PDF-book-content',
+                    content_type='application/pdf',
+                ),
+            },
+            secure=True,
+        )
+
+        self.assertRedirects(
+            response,
+            reverse('pod_detail', args=[self.pod.pk]),
+            fetch_redirect_response=False,
+        )
+        book = PodBook.objects.get(pod=self.pod, is_current=True)
+        self.assertEqual(book.title, 'A Book for the Pod')
+        self.assertEqual(book.duration_weeks, 6)
+        self.assertTrue(book.document.name.endswith('.pdf'))
+        self.assertEqual(book.started_on, timezone.localdate())
+
+    def test_weekly_reviews_are_unique_editable_and_cannot_be_submitted_early(self):
+        media_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(media_directory.cleanup)
+        settings_override = override_settings(MEDIA_ROOT=media_directory.name)
+        settings_override.enable()
+        self.addCleanup(settings_override.disable)
+        book = PodBook.objects.create(
+            pod=self.pod,
+            title='A Book for the Pod',
+            document=SimpleUploadedFile('pod-book.docx', b'word-document'),
+            duration_weeks=3,
+            assigned_by=self.leader,
+        )
+        self.client.force_login(self.member)
+
+        first_response = self.client.post(
+            reverse('pod_detail', args=[self.pod.pk]),
+            {
+                'submit_book_review': '1',
+                'week_number': '1',
+                'review': 'My first thoughts.',
+            },
+            secure=True,
+        )
+        update_response = self.client.post(
+            reverse('pod_detail', args=[self.pod.pk]),
+            {
+                'submit_book_review': '1',
+                'week_number': '1',
+                'review': 'My updated first-week thoughts.',
+            },
+            secure=True,
+        )
+        early_response = self.client.post(
+            reverse('pod_detail', args=[self.pod.pk]),
+            {
+                'submit_book_review': '1',
+                'week_number': '2',
+                'review': 'This week has not started yet.',
+            },
+            secure=True,
+        )
+
+        self.assertEqual(first_response.status_code, 302)
+        self.assertEqual(update_response.status_code, 302)
+        self.assertEqual(early_response.status_code, 200)
+        review = PodBookReview.objects.get(book=book, user=self.member, week_number=1)
+        self.assertEqual(review.review, 'My updated first-week thoughts.')
+        self.assertEqual(PodBookReview.objects.filter(book=book, user=self.member).count(), 1)
+
+    def test_only_pod_participants_can_download_book(self):
+        media_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(media_directory.cleanup)
+        settings_override = override_settings(MEDIA_ROOT=media_directory.name)
+        settings_override.enable()
+        self.addCleanup(settings_override.disable)
+        book = PodBook.objects.create(
+            pod=self.pod,
+            title='A Book for the Pod',
+            document=SimpleUploadedFile('pod-book.pdf', b'%PDF-book-content'),
+            assigned_by=self.leader,
+        )
+        outsider = CustomUser.objects.create_user(
+            username='pod-book-outsider',
+            password='test-password',
+        )
+        url = reverse('pod_book_file', args=[self.pod.pk, book.pk])
+
+        self.client.force_login(self.member)
+        allowed_response = self.client.get(url, secure=True)
+        self.assertEqual(allowed_response.status_code, 200)
+        self.assertEqual(b''.join(allowed_response.streaming_content), b'%PDF-book-content')
+
+        self.client.force_login(outsider)
+        denied_response = self.client.get(url, secure=True)
+        self.assertEqual(denied_response.status_code, 403)
+
     def test_apprentice_oversight_is_read_only_for_chat(self):
         mentor = CustomUser.objects.create_user(
             username='oversight-mentor',
@@ -224,6 +345,13 @@ class PodPageTests(TestCase):
             SimpleUploadedFile('pod-lesson.mp3', b'audio-content', content_type='audio/mpeg'),
         )
         audio_path = Path(lesson.audio_file.path)
+        book = PodBook.objects.create(
+            pod=self.pod,
+            title='Pod book',
+            document=SimpleUploadedFile('pod-book.pdf', b'%PDF-book-content'),
+            assigned_by=self.leader,
+        )
+        book_path = Path(book.document.path)
         PodMessage.objects.create(pod=self.pod, author=self.member, body='Pod message')
         admin = CustomUser.objects.create_user(
             username='pod-delete-admin',
@@ -259,3 +387,4 @@ class PodPageTests(TestCase):
         self.assertFalse(Course.objects.filter(pk=course.pk).exists())
         self.assertFalse(Lesson.objects.filter(pk=lesson.pk).exists())
         self.assertFalse(audio_path.exists())
+        self.assertFalse(book_path.exists())

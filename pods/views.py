@@ -1,19 +1,34 @@
+from pathlib import Path
+from datetime import timedelta
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Q
-from django.http import HttpResponseForbidden
+from django.http import FileResponse, HttpResponseForbidden
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 from accounts.utils import notify_user
 from curriculum.models import Lesson
-from .models import Pod, PodMember, PodMentor, PodMessage, PodMeeting, ApprenticeOversight
+from .models import (
+    ApprenticeOversight,
+    Pod,
+    PodBook,
+    PodBookReview,
+    PodMeeting,
+    PodMember,
+    PodMentor,
+    PodMessage,
+)
 from .forms import (
     AddMemberForm,
     AssignMentorsForm,
     JoinPodForm,
     LaunchApprenticePodForm,
+    PodBookForm,
+    PodBookReviewForm,
     PodForm,
     PodMeetingForm,
     PodMessageForm,
@@ -153,8 +168,77 @@ def pod_detail_view(request, pod_id):
     )
     message_form = PodMessageForm()
     meeting_form = PodMeetingForm()
+    book = pod.reading_books.filter(is_current=True).first()
+    book_form = PodBookForm()
+    book_review_form = None
+    book_weeks = []
 
-    if can_manage_members and request.method == 'POST' and 'add_member' in request.POST:
+    if book:
+        days_since_start = (timezone.localdate() - book.started_on).days
+        available_week_count = min(
+            book.duration_weeks,
+            max(0, days_since_start // 7 + 1),
+        )
+        available_weeks = list(range(1, available_week_count + 1))
+        if available_weeks:
+            current_week = available_weeks[-1]
+            book_review_form = PodBookReviewForm(
+                available_weeks=available_weeks,
+                initial_week=current_week,
+            )
+        reviews_by_week = {}
+        reviews = book.reviews.filter(
+            week_number__lte=available_week_count,
+        ).select_related('user')
+        for review in reviews:
+            reviews_by_week.setdefault(review.week_number, []).append(review)
+        book_weeks = [
+            {
+                'number': week,
+                'due_on': book.started_on + timedelta(days=week * 7),
+                'reviews': reviews_by_week.get(week, []),
+            }
+            for week in available_weeks
+        ]
+
+    if can_manage_members and request.method == 'POST' and 'assign_book' in request.POST:
+        book_form = PodBookForm(request.POST, request.FILES)
+        if book_form.is_valid():
+            with transaction.atomic():
+                pod.reading_books.filter(is_current=True).update(is_current=False)
+                book = PodBook.objects.create(
+                    pod=pod,
+                    title=book_form.cleaned_data['title'],
+                    document=book_form.cleaned_data['document'],
+                    duration_weeks=book_form.cleaned_data['duration_weeks'],
+                    assigned_by=request.user,
+                )
+            messages.success(request, f"'{book.title}' is now the reading assignment for {pod.name}.")
+            return redirect('pod_detail', pod_id=pod.id)
+    elif can_participate and book and request.method == 'POST' and 'submit_book_review' in request.POST:
+        days_since_start = (timezone.localdate() - book.started_on).days
+        available_week_count = min(
+            book.duration_weeks,
+            max(0, days_since_start // 7 + 1),
+        )
+        available_weeks = list(range(1, available_week_count + 1))
+        current_week = available_weeks[-1] if available_weeks else None
+        book_review_form = PodBookReviewForm(
+            request.POST,
+            available_weeks=available_weeks,
+            initial_week=current_week,
+        )
+        if book_review_form.is_valid():
+            week_number = int(book_review_form.cleaned_data['week_number'])
+            PodBookReview.objects.update_or_create(
+                book=book,
+                user=request.user,
+                week_number=week_number,
+                defaults={'review': book_review_form.cleaned_data['review']},
+            )
+            messages.success(request, f'Your week {week_number} book review was saved.')
+            return redirect('pod_detail', pod_id=pod.id)
+    elif can_manage_members and request.method == 'POST' and 'add_member' in request.POST:
         add_member_form = AddMemberForm(request.POST)
         if add_member_form.is_valid():
             username = add_member_form.cleaned_data['username']
@@ -228,8 +312,26 @@ def pod_detail_view(request, pod_id):
         'message_form': message_form,
         'meeting_form': meeting_form,
         'can_manage_join_code': can_manage_members,
+        'book': book,
+        'book_form': book_form,
+        'book_review_form': book_review_form,
+        'book_weeks': book_weeks,
+        'can_manage_book': can_manage_members,
+        'can_review_book': can_participate,
     }
     return render(request, 'pods/pod_detail.html', context)
+
+
+@login_required
+def pod_book_file_view(request, pod_id, book_id):
+    book = get_object_or_404(PodBook, pk=book_id, pod_id=pod_id)
+    if not user_has_pod_access(request.user, book.pod):
+        return HttpResponseForbidden('You do not have permission to access this Pod book.')
+    return FileResponse(
+        book.document.open('rb'),
+        as_attachment=True,
+        filename=Path(book.document.name).name,
+    )
 
 
 @login_required
@@ -247,6 +349,9 @@ def pod_delete_view(request, pod_id):
         for field in (lesson.audio_file, lesson.pdf_resource):
             if field:
                 files[field.name] = field.storage
+    for book in pod.reading_books.all():
+        if book.document:
+            files[book.document.name] = book.document.storage
 
     pod_name = pod.name
     with transaction.atomic():
@@ -254,7 +359,11 @@ def pod_delete_view(request, pod_id):
         pod.delete()
 
     for name, storage in files.items():
-        if not Lesson.objects.filter(Q(audio_file=name) | Q(pdf_resource=name)).exists():
+        lesson_references_file = Lesson.objects.filter(
+            Q(audio_file=name) | Q(pdf_resource=name)
+        ).exists()
+        book_references_file = PodBook.objects.filter(document=name).exists()
+        if not lesson_references_file and not book_references_file:
             storage.delete(name)
 
     messages.success(request, f"Pod '{pod_name}' and its associated data were deleted.")

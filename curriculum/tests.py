@@ -2,6 +2,7 @@ import json
 import tempfile
 from io import BytesIO
 from pathlib import Path
+from urllib.error import HTTPError
 from unittest.mock import patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -35,9 +36,9 @@ class CurriculumVisibilityTests(TestCase):
             username='curriculum-leader',
             password='test-password',
         )
-        pod = Pod.objects.create(name='Curriculum Pod', leader=self.leader)
-        PodMember.objects.create(pod=pod, user=self.leader, role='LEADER')
-        PodMember.objects.create(pod=pod, user=self.member, role='MEMBER')
+        self.pod = Pod.objects.create(name='Curriculum Pod', leader=self.leader)
+        PodMember.objects.create(pod=self.pod, user=self.leader, role='LEADER')
+        PodMember.objects.create(pod=self.pod, user=self.member, role='MEMBER')
 
     def test_regular_member_does_not_see_upload_lesson_action(self):
         self.client.force_login(self.member)
@@ -56,6 +57,33 @@ class CurriculumVisibilityTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Upload New Lesson')
         self.assertContains(response, 'Generate Course with AI')
+
+    def test_pod_course_lessons_appear_in_curriculum_before_publication(self):
+        course = Course.objects.create(
+            title='Pod Reading Course',
+            pod=self.pod,
+            created_by=self.leader,
+            is_published=False,
+        )
+        module = Module.objects.create(course=course, title='Pod Module')
+        lesson = Lesson.objects.create(
+            title='Lesson Uploaded to Pod',
+            content='Pod lesson content.',
+            module=module,
+            pod=self.pod,
+            created_by=self.leader,
+        )
+        self.client.force_login(self.member)
+
+        library_response = self.client.get(reverse('lesson_list'), secure=True)
+        course_response = self.client.get(
+            reverse('course_detail', args=[course.pk]),
+            secure=True,
+        )
+
+        self.assertContains(library_response, 'Pod Reading Course')
+        self.assertEqual(course_response.status_code, 200)
+        self.assertContains(course_response, lesson.title)
 
     def test_non_leader_cannot_open_lesson_creation(self):
         self.client.force_login(self.member)
@@ -139,6 +167,8 @@ class CurriculumVisibilityTests(TestCase):
         self.assertTrue(result['is_structured'])
         self.assertEqual(result['missing_sections'], [])
         self.assertFalse(result['ai_available'])
+        self.assertIn('Click Try again.', result['ai_message'])
+        self.assertIn('ask an admin to check the AI settings', result['ai_message'])
         self.assertEqual(
             [section['heading'] for section in result['sections']],
             ['Scripture', 'Proposition', 'Introduction', '1. The first outline', 'Conclusion'],
@@ -413,6 +443,26 @@ class LocalLessonAITests(TestCase):
 
         open_url.assert_not_called()
 
+    @override_settings(AI_PROVIDER='gemini', GEMINI_API_KEY='test-api-key')
+    def test_gemini_http_errors_identify_model_key_and_quota_problems(self):
+        cases = [
+            (404, 'could not find the configured model'),
+            (403, 'rejected the API key or request'),
+            (429, 'rate or quota limit reached'),
+        ]
+        for status_code, expected_message in cases:
+            with self.subTest(status_code=status_code):
+                error = HTTPError(
+                    'https://generativelanguage.googleapis.com/',
+                    status_code,
+                    'Request failed',
+                    {},
+                    BytesIO(),
+                )
+                with patch('curriculum.ai.urlopen', side_effect=error):
+                    with self.assertRaisesMessage(LessonAIError, expected_message):
+                        generate_lesson_suggestions('A lesson about prayer.')
+
     @override_settings(
         AI_PROVIDER='openrouter',
         OPENROUTER_API_KEY='test-openrouter-key',
@@ -675,6 +725,7 @@ class AICourseGenerationTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'AI is unavailable.')
+        self.assertContains(response, 'Check the AI settings or try again.')
         self.assertFalse(Course.objects.filter(title='Generated Learning Path').exists())
         self.assertTrue(all(lesson.module_id is None for lesson in self.lessons))
 

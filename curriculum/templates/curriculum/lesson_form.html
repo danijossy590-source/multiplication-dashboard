@@ -30,11 +30,11 @@
 
         <div class="rounded-lg border border-indigo-100 bg-indigo-50 p-4">
             <h3 class="font-semibold text-indigo-950">Lesson assistant</h3>
-            <p class="mt-1 text-sm text-gray-700">Check lesson sections and, when local AI is available, draft a summary and discussion questions. Suggestions are never published until you review and save them.</p>
+            <p class="mt-1 text-sm text-gray-700">Check lesson sections and use the configured AI provider to draft a summary and discussion questions. Suggestions are never published until you review and save them.</p>
             <button type="button" id="analyze-lesson" class="mt-3 rounded bg-indigo-800 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-900">
                 Analyze lesson
             </button>
-            <p id="analysis-status" class="mt-2 text-sm text-gray-700" aria-live="polite"></p>
+            <p id="analysis-status" class="mt-2 text-sm text-gray-700" role="status" aria-live="polite"></p>
             <div id="analysis-result" class="mt-3 hidden space-y-3">
                 <div>
                     <h4 class="font-semibold text-gray-800">Detected sections</h4>
@@ -123,7 +123,10 @@
         }
 
         analyzeButton.disabled = true;
+        analyzeButton.textContent = 'Analyzing…';
         statusMessage.textContent = 'Analyzing lesson…';
+        statusMessage.classList.remove('text-red-700');
+        statusMessage.classList.add('text-gray-700');
         analysisResult.classList.add('hidden');
 
         try {
@@ -159,12 +162,19 @@
                 document.getElementById('suggested-questions').value = result.ai_suggestions.discussion_questions.join('\n');
                 suggestions.classList.remove('hidden');
                 statusMessage.textContent = 'Analysis complete. AI suggestions are drafts; review them before applying.';
+                analyzeButton.textContent = 'Analyze lesson';
             } else {
                 suggestions.classList.add('hidden');
-                statusMessage.textContent = result.ai_message || 'Structure check complete; local AI is unavailable.';
+                statusMessage.textContent = result.ai_message || 'AI suggestions are unavailable. Click Try again or ask an admin to check the AI settings.';
+                statusMessage.classList.remove('text-gray-700');
+                statusMessage.classList.add('text-red-700');
+                analyzeButton.textContent = 'Try again';
             }
         } catch (error) {
-            statusMessage.textContent = error.message;
+            statusMessage.textContent = `${error.message} Click Try again or ask an admin to check the AI settings.`;
+            statusMessage.classList.remove('text-gray-700');
+            statusMessage.classList.add('text-red-700');
+            analyzeButton.textContent = 'Try again';
         } finally {
             analyzeButton.disabled = false;
         }

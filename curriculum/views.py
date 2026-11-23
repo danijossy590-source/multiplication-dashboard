@@ -64,7 +64,7 @@ def lesson_list_view(request):
 
     available_courses = Course.objects.filter(
         Q(pod__isnull=True, is_published=True)
-        | Q(pod_id__in=all_user_pod_ids, is_published=True)
+        | Q(pod_id__in=all_user_pod_ids)
         | Q(created_by=request.user)
     ).select_related('pod').prefetch_related('modules__lessons')
     if request.user.is_staff or request.user.is_superuser:
@@ -148,12 +148,12 @@ def _delete_unreferenced_lesson_files(files):
 def _can_view_course(user, course):
     if user.is_staff or user.is_superuser or _can_manage_course(user, course):
         return True
-    if not course.is_published:
-        return False
-    return course.pod_id is None or (
-        course.pod.leader_id == user.id
-        or course.pod.memberships.filter(user=user).exists()
-    )
+    if course.pod_id:
+        return (
+            course.pod.leader_id == user.id
+            or course.pod.memberships.filter(user=user).exists()
+        )
+    return course.is_published
 
 
 def _course_is_complete(user, course):
@@ -265,7 +265,7 @@ def course_generate_view(request):
         try:
             plan = generate_course_plan(lesson_sources)
         except LessonAIError as error:
-            form.add_error(None, str(error))
+            form.add_error(None, f'{error} Check the AI settings or try again.')
         else:
             pod = form.cleaned_data['pod']
             selected_by_id = {lesson.pk: lesson for lesson in selected_lessons}
@@ -702,7 +702,9 @@ def lesson_assist_view(request):
     except LessonAIError as error:
         result['ai_suggestions'] = None
         result['ai_available'] = False
-        result['ai_message'] = str(error)
+        result['ai_message'] = (
+            f'{error} Click Try again. If the issue continues, ask an admin to check the AI settings.'
+        )
     return JsonResponse(result)
 
 

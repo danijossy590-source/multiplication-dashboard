@@ -67,4 +67,6 @@ The public Community Q&A board is available at `/questions/` and is linked from 
 
 ## Pod access and administration
 
-Pod admins and leaders can share the Pod's reusable access code from its detail page. Signed-in users can enter the code from the Pods page to join as members; leaders and admins can rotate the code to invalidate the previous one. Only admins can delete a Pod. Deleting a Pod permanently removes its memberships, chat, meetings, courses, lessons, and related progress.
+Pod admins and leaders can share the Pod's reusable access code from its detail page. Signed-in users can enter the code from the Pods page to join as members; leaders and admins can rotate the code to invalidate the previous one. Only admins can delete a Pod. Deleting a Pod permanently removes its memberships, chat, meetings, book assignments, courses, lessons, and related progress.
+
+Pod leaders can assign a PDF or Word book to their Pod and set a reading schedule of up to 52 weeks. Pod participants can download the book and submit or update one review for each available week. Assigning a new book starts a new schedule while retaining the previous assignment and its reviews. Pod-scoped courses and their lessons are available to Pod members from Curriculum, even before the course is published globally.
