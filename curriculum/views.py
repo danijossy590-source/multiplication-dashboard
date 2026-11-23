@@ -33,7 +33,7 @@ from .forms import (
     TeachThisForm,
 )
 from .structure import structure_lesson
-from pods.models import Pod
+from pods.models import ApprenticeOversight, Pod, PodMentor
 
 @login_required
 def lesson_list_view(request):
@@ -44,22 +44,21 @@ def lesson_list_view(request):
     """
     search_query = request.GET.get('q', '').strip()
 
-    master_lessons = Lesson.objects.filter(is_master_template=True).order_by('-created_at')
-    master_lessons = master_lessons.filter(module__isnull=True)
-    if search_query:
-        master_lessons = master_lessons.filter(title__icontains=search_query)
-
-    # Retrieve all Pod IDs where the user is either a Leader or Member
+    # Include every Pod the user can learn in, including mentor and oversight Pods.
     leading_pod_ids = request.user.leading_pods.values_list('id', flat=True)
     membership_pod_ids = request.user.pod_memberships.values_list('pod_id', flat=True)
-    all_user_pod_ids = list(set(list(leading_pod_ids) + list(membership_pod_ids)))
-
-    pod_lessons = Lesson.objects.filter(
-        pod_id__in=all_user_pod_ids,
-        module__isnull=True,
-    ).select_related('pod', 'created_by').order_by('-created_at')
-    if search_query:
-        pod_lessons = pod_lessons.filter(title__icontains=search_query)
+    mentor_pod_ids = PodMentor.objects.filter(
+        mentor=request.user,
+    ).values_list('pod_id', flat=True)
+    oversight_pod_ids = ApprenticeOversight.objects.filter(
+        mentor=request.user,
+    ).values_list('apprentice_pod_id', flat=True)
+    all_user_pod_ids = set(
+        list(leading_pod_ids)
+        + list(membership_pod_ids)
+        + list(mentor_pod_ids)
+        + list(oversight_pod_ids)
+    )
 
     available_courses = Course.objects.filter(
         Q(pod__isnull=True, is_published=True)
@@ -68,8 +67,26 @@ def lesson_list_view(request):
     ).select_related('pod').prefetch_related('modules__lessons')
     if request.user.is_staff or request.user.is_superuser:
         available_courses = Course.objects.all().select_related('pod').prefetch_related('modules__lessons')
+    visible_course_ids = available_courses.values_list('id', flat=True)
     if search_query:
         available_courses = available_courses.filter(title__icontains=search_query)
+
+    if request.user.is_staff or request.user.is_superuser:
+        all_lessons = Lesson.objects.all()
+    else:
+        all_lessons = Lesson.objects.filter(
+            Q(is_master_template=True, module__isnull=True)
+            | Q(pod_id__in=all_user_pod_ids)
+            | Q(created_by=request.user, module__isnull=True)
+            | Q(module__course_id__in=visible_course_ids)
+        ).distinct()
+    all_lessons = all_lessons.select_related(
+        'pod',
+        'created_by',
+        'module__course',
+    ).order_by('-created_at', 'id')
+    if search_query:
+        all_lessons = all_lessons.filter(title__icontains=search_query)
     for course in available_courses:
         lesson_ids = [
             lesson.id
@@ -87,8 +104,7 @@ def lesson_list_view(request):
         )
 
     context = {
-        'master_lessons': master_lessons,
-        'pod_lessons': pod_lessons,
+        'all_lessons': all_lessons,
         'courses': available_courses,
         'search_query': search_query,
         'can_create_lessons': (

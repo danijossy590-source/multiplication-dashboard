@@ -1,26 +1,76 @@
+from io import BytesIO
 import tempfile
 from datetime import timedelta
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
+from pypdf import PdfWriter
 
 from accounts.models import CustomUser
 from curriculum.models import Course, Lesson, Module
+from .books import prepare_book_document
 from .models import (
     ApprenticeOversight,
     Pod,
     PodBook,
     PodBookReviewComment,
     PodBookReview,
+    PodBookSectionProgress,
     PodMeeting,
     PodMember,
     PodMessage,
     PodMentor,
 )
+
+
+def make_pdf(page_count):
+    writer = PdfWriter()
+    for _ in range(page_count):
+        writer.add_blank_page(width=612, height=792)
+    output = BytesIO()
+    writer.write(output)
+    return output.getvalue()
+
+
+class PodBookSectioningTests(TestCase):
+    def test_chapter_headings_are_kept_together_in_weekly_sections(self):
+        pages = [
+            Mock(extract_text=Mock(return_value='Chapter 1: Foundations\nFirst chapter.')),
+            Mock(extract_text=Mock(return_value='First chapter continued.')),
+            Mock(extract_text=Mock(return_value='Chapter 2: Practice\nSecond chapter.')),
+            Mock(extract_text=Mock(return_value='Second chapter continued.')),
+        ]
+        with patch(
+            'pods.books.PdfReader',
+            return_value=Mock(is_encrypted=False, pages=pages),
+        ):
+            _, sections = prepare_book_document(
+                SimpleUploadedFile('book.pdf', b'%PDF-test'),
+                duration_weeks=2,
+            )
+
+        self.assertEqual(
+            sections,
+            [
+                {
+                    'week_number': 1,
+                    'title': 'Chapter 1: Foundations',
+                    'start_page': 1,
+                    'end_page': 2,
+                },
+                {
+                    'week_number': 2,
+                    'title': 'Chapter 2: Practice',
+                    'start_page': 3,
+                    'end_page': 4,
+                },
+            ],
+        )
 
 
 class PodPageTests(TestCase):
@@ -163,7 +213,7 @@ class PodPageTests(TestCase):
                 'duration_weeks': '6',
                 'document': SimpleUploadedFile(
                     'pod-book.pdf',
-                    b'%PDF-book-content',
+                    make_pdf(12),
                     content_type='application/pdf',
                 ),
             },
@@ -180,6 +230,34 @@ class PodPageTests(TestCase):
         self.assertEqual(book.duration_weeks, 6)
         self.assertTrue(book.document.name.endswith('.pdf'))
         self.assertEqual(book.started_on, timezone.localdate())
+        sections = list(book.sections.all())
+        self.assertEqual(len(sections), 6)
+        self.assertEqual((sections[0].start_page, sections[0].end_page), (1, 2))
+        self.assertTrue(book.reader_pdf)
+
+        self.client.force_login(self.member)
+        reader_response = self.client.get(
+            reverse('pod_book_read', args=[self.pod.pk, book.pk]),
+            secure=True,
+        )
+        self.assertEqual(reader_response.status_code, 200)
+        self.assertContains(reader_response, 'Week 1')
+        self.assertContains(reader_response, 'Mark section as read')
+        progress_response = self.client.post(
+            reverse(
+                'pod_book_section_progress',
+                args=[self.pod.pk, book.pk, sections[0].pk],
+            ),
+            {'mark_complete': '1'},
+            secure=True,
+        )
+        self.assertEqual(progress_response.status_code, 302)
+        self.assertTrue(
+            PodBookSectionProgress.objects.filter(
+                section=sections[0],
+                user=self.member,
+            ).exists()
+        )
 
     def test_weekly_reviews_are_unique_editable_and_cannot_be_submitted_early(self):
         media_directory = tempfile.TemporaryDirectory()
@@ -284,7 +362,7 @@ class PodPageTests(TestCase):
             secure=True,
         )
         week_progress = {
-            entry['user'].username: entry['status']
+            entry['user'].username: entry['review_status']
             for entry in detail_response.context['book_weeks'][0]['member_progress']
         }
         self.assertEqual(week_progress['pod-member'], 'reviewed')
@@ -476,6 +554,7 @@ class PodPageTests(TestCase):
         )
 
         self.assertContains(detail_response, 'Delete Pod permanently')
+        self.assertContains(detail_response, 'data-confirm-delete')
         self.assertRedirects(
             delete_response,
             reverse('pod_list'),

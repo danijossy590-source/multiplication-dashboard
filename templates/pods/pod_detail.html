@@ -59,9 +59,14 @@
                 <p class="mt-1 text-sm text-gray-600">
                     {{ book.duration_weeks }} week{{ book.duration_weeks|pluralize }} · Started {{ book.started_on|date:"M d, Y" }}
                 </p>
-                <a href="{% url 'pod_book_file' pod.id book.id %}" class="mt-2 inline-flex rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800">
-                    Download reading material
-                </a>
+                <div class="mt-3 flex flex-wrap gap-2">
+                    <a href="{% url 'pod_book_read' pod.id book.id %}" class="inline-flex rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800">
+                        Read this book
+                    </a>
+                    <a href="{% url 'pod_book_file' pod.id book.id %}" class="inline-flex rounded-lg border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">
+                        Download original
+                    </a>
+                </div>
                 {% else %}
                 <p class="mt-1 text-sm text-gray-600">Your Pod does not have a reading assignment yet.</p>
                 {% endif %}
@@ -105,23 +110,45 @@
         {% if book %}
         <div class="mt-5 space-y-4 border-t border-emerald-100 pt-4">
             <div>
-                <h3 class="font-bold text-gray-900">Weekly reading reviews</h3>
-                <p class="mt-1 text-sm text-gray-600">Submit one review each week. You can update your review for that week.</p>
+                <div class="flex flex-wrap items-baseline justify-between gap-2">
+                    <div>
+                        <h3 class="font-bold text-gray-900">Reading progress</h3>
+                        <p class="mt-1 text-sm text-gray-600">Your completed sections: {{ book_completion_percent }}%</p>
+                    </div>
+                    <a href="{% url 'pod_book_read' pod.id book.id %}" class="text-sm font-semibold text-emerald-800 hover:underline">Open reader &rarr;</a>
+                </div>
+                <div class="mt-2 h-2 overflow-hidden rounded-full bg-gray-200">
+                    <div class="h-full rounded-full bg-emerald-600" style="width: {{ book_completion_percent }}%"></div>
+                </div>
+                <p class="mt-4 text-sm text-gray-600">Read the section assigned for each week, mark it complete, and share a weekly review.</p>
             </div>
             {% for week in book_weeks %}
             <article class="rounded-lg border border-gray-200 p-4">
                 <div class="flex flex-wrap items-baseline justify-between gap-2">
-                    <h4 class="font-semibold text-indigo-900">Week {{ week.number }}</h4>
+                    <h4 class="font-semibold text-indigo-900">Week {{ week.number }}{% if week.section %}: {{ week.section.title }}{% endif %}</h4>
                     <p class="text-xs text-gray-500">{{ week.reviewed_count }}/{{ members|length }} reviewed · Due {{ week.due_on|date:"M d, Y" }}</p>
                 </div>
+                {% if week.section %}
+                <div class="mt-2 flex flex-wrap items-center justify-between gap-2">
+                    <p class="text-xs text-gray-500">Pages {{ week.section.start_page }}-{{ week.section.end_page }} ·
+                        {% if week.section_status == 'complete' %}<span class="font-semibold text-emerald-700">Section complete</span>
+                        {% elif week.section_status == 'behind' %}<span class="font-semibold text-red-700">Section behind</span>
+                        {% elif week.section_status == 'upcoming' %}<span class="font-semibold text-gray-500">Upcoming</span>
+                        {% else %}<span class="font-semibold text-amber-700">In progress</span>{% endif %}
+                    </p>
+                    <a href="{% url 'pod_book_read' pod.id book.id %}?week={{ week.number }}" class="text-sm font-semibold text-indigo-700 hover:underline">Read this section &rarr;</a>
+                </div>
+                {% endif %}
                 <ul class="mt-3 flex flex-wrap gap-2">
                     {% for progress in week.member_progress %}
                     <li class="rounded-full px-3 py-1 text-xs font-semibold
-                        {% if progress.status == 'reviewed' %}bg-emerald-100 text-emerald-800
-                        {% elif progress.status == 'behind' %}bg-red-100 text-red-800
+                        {% if progress.review_status == 'reviewed' and progress.reading_status == 'complete' %}bg-emerald-100 text-emerald-800
+                        {% elif progress.review_status == 'behind' or progress.reading_status == 'behind' %}bg-red-100 text-red-800
+                        {% elif progress.review_status == 'upcoming' and progress.reading_status == 'upcoming' %}bg-gray-100 text-gray-700
                         {% else %}bg-amber-100 text-amber-800{% endif %}">
                         {{ progress.user.get_full_name|default:progress.user.username }}:
-                        {% if progress.status == 'reviewed' %}Reviewed{% elif progress.status == 'behind' %}Behind{% else %}In progress{% endif %}
+                        {% if progress.reading_status == 'complete' %}Read{% elif progress.reading_status == 'behind' %}Reading behind{% elif progress.reading_status == 'upcoming' %}Upcoming{% else %}Reading in progress{% endif %} ·
+                        {% if progress.review_status == 'reviewed' %}Review submitted{% elif progress.review_status == 'behind' %}Review behind{% elif progress.review_status == 'upcoming' %}Review upcoming{% else %}Review due{% endif %}
                     </li>
                     {% endfor %}
                 </ul>
@@ -150,7 +177,11 @@
                         </div>
                     </div>
                     {% empty %}
+                    {% if week.number <= available_week_count %}
                     <p class="text-sm text-gray-500">No reviews submitted for this week yet.</p>
+                    {% else %}
+                    <p class="text-sm text-gray-500">This week's reading opens {{ week.starts_on|date:"M d, Y" }}.</p>
+                    {% endif %}
                     {% endfor %}
                 </div>
             </article>
@@ -248,7 +279,7 @@
     <section class="rounded-lg border border-red-200 bg-red-50 p-4 sm:p-5">
         <h2 class="font-bold text-red-900">Delete this Pod</h2>
         <p class="mt-1 text-sm text-red-800">This permanently deletes the Pod, its members, chat, meetings, book assignments, courses, lessons, and related progress. This cannot be undone.</p>
-        <form method="post" action="{% url 'pod_delete' pod.id %}" class="mt-3" onsubmit="return confirm('Permanently delete this Pod and all associated data?');">
+        <form method="post" action="{% url 'pod_delete' pod.id %}" class="mt-3" data-confirm-delete data-confirm-title="Delete {{ pod.name }}?" data-confirm-message="This permanently removes the Pod, its members, books, reviews, courses, lessons, and related progress. This action cannot be undone." data-confirm-label="Delete Pod permanently">
             {% csrf_token %}
             <button type="submit" class="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800">Delete Pod permanently</button>
         </form>

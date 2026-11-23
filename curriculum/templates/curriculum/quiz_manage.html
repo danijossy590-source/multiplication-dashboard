@@ -40,7 +40,7 @@
                         {% endfor %}
                     </ul>
                 </div>
-                <form method="post">
+                <form method="post" data-confirm-delete data-confirm-title="Remove this quiz question?" data-confirm-message="This question and its answer choices will be permanently removed from the module quiz." data-confirm-label="Remove question">
                     {% csrf_token %}
                     <button name="delete_question" value="{{ question.id }}" class="text-sm text-red-700 hover:underline">Remove</button>
                 </form>

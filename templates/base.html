@@ -83,5 +83,77 @@
         <p>&copy; 2026 Camp of Gilgal Discipleship Platform. All rights reserved.</p>
     </footer>
 
+    <dialog
+        id="delete-confirmation-dialog"
+        aria-labelledby="delete-confirmation-title"
+        aria-describedby="delete-confirmation-message"
+        class="w-[calc(100%-2rem)] max-w-lg rounded-2xl border-0 bg-transparent p-0 shadow-2xl backdrop:bg-slate-950/60">
+        <div class="overflow-hidden rounded-2xl bg-white">
+            <div class="border-b border-red-100 bg-red-50 px-5 py-4 sm:px-6">
+                <p class="text-xs font-bold uppercase tracking-widest text-red-700">Please confirm</p>
+                <h2 id="delete-confirmation-title" class="mt-1 text-xl font-bold text-slate-950">Delete this item?</h2>
+            </div>
+            <div class="p-5 sm:p-6">
+                <p id="delete-confirmation-message" class="text-sm leading-6 text-slate-600">This action cannot be undone.</p>
+                <div class="mt-6 flex flex-col-reverse justify-end gap-2 sm:flex-row">
+                    <button id="delete-confirmation-cancel" type="button" class="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
+                    <button id="delete-confirmation-confirm" type="button" class="rounded-lg bg-red-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-800">Delete permanently</button>
+                </div>
+            </div>
+        </div>
+    </dialog>
+
+    <script>
+        (() => {
+            const dialog = document.getElementById('delete-confirmation-dialog');
+            const title = document.getElementById('delete-confirmation-title');
+            const message = document.getElementById('delete-confirmation-message');
+            const cancelButton = document.getElementById('delete-confirmation-cancel');
+            const confirmButton = document.getElementById('delete-confirmation-confirm');
+            let pendingForm = null;
+            let pendingSubmitter = null;
+
+            document.addEventListener('submit', (event) => {
+                const form = event.target;
+                if (!(form instanceof HTMLFormElement) || !form.hasAttribute('data-confirm-delete')) {
+                    return;
+                }
+                if (form.dataset.confirmedDelete === 'true') {
+                    delete form.dataset.confirmedDelete;
+                    return;
+                }
+
+                event.preventDefault();
+                pendingForm = form;
+                pendingSubmitter = event.submitter || null;
+                title.textContent = form.dataset.confirmTitle || 'Delete this item?';
+                message.textContent = form.dataset.confirmMessage || 'This action cannot be undone.';
+                confirmButton.textContent = form.dataset.confirmLabel || 'Delete permanently';
+                dialog.showModal();
+            });
+
+            cancelButton.addEventListener('click', () => dialog.close());
+            dialog.addEventListener('close', () => {
+                pendingForm = null;
+                pendingSubmitter = null;
+            });
+            confirmButton.addEventListener('click', () => {
+                const form = pendingForm;
+                const submitter = pendingSubmitter;
+                if (!form) {
+                    dialog.close();
+                    return;
+                }
+
+                form.dataset.confirmedDelete = 'true';
+                dialog.close();
+                if (submitter) {
+                    form.requestSubmit(submitter);
+                } else {
+                    form.requestSubmit();
+                }
+            });
+        })();
+    </script>
 </body>
 </html>

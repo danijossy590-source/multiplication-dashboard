@@ -1,3 +1,4 @@
+import uuid
 from pathlib import Path
 from datetime import timedelta
 
@@ -5,20 +6,25 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth import get_user_model
+from django.core.files.base import ContentFile
 from django.db import transaction
 from django.db.models import Q
-from django.http import FileResponse, HttpResponseForbidden
+from django.http import FileResponse, Http404, HttpResponseForbidden
 from django.utils import timezone
+from django.utils.text import slugify
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 from accounts.utils import notify_user
 from curriculum.models import Lesson
+from .books import PodBookDocumentError, prepare_book_document
 from .models import (
     ApprenticeOversight,
     Pod,
     PodBook,
     PodBookReviewComment,
     PodBookReview,
+    PodBookSection,
+    PodBookSectionProgress,
     PodMeeting,
     PodMember,
     PodMentor,
@@ -188,6 +194,8 @@ def pod_detail_view(request, pod_id):
     book_form = PodBookForm()
     book_review_form = None
     book_weeks = []
+    available_week_count = 0
+    book_completion_percent = 0
 
     if book:
         days_since_start = (timezone.localdate() - book.started_on).days
@@ -201,6 +209,27 @@ def pod_detail_view(request, pod_id):
             book_review_form = PodBookReviewForm(
                 available_weeks=available_weeks,
                 initial_week=current_week,
+            )
+        sections_by_week = {
+            section.week_number: section
+            for section in book.sections.all()
+        }
+        section_progress = list(
+            PodBookSectionProgress.objects.filter(
+                section__book=book,
+            ).select_related('section', 'user')
+        )
+        completed_section_users = {
+            (progress.section_id, progress.user_id)
+            for progress in section_progress
+        }
+        current_user_completed_sections = sum(
+            (section.pk, request.user.pk) in completed_section_users
+            for section in sections_by_week.values()
+        )
+        if sections_by_week:
+            book_completion_percent = (
+                current_user_completed_sections * 100 // len(sections_by_week)
             )
         reviews = list(book.reviews.filter(
             week_number__lte=available_week_count,
@@ -225,49 +254,106 @@ def pod_detail_view(request, pod_id):
                 if review:
                     review.comment_threads.append(comment)
             comments_by_id[comment.pk] = comment
-        book_weeks = [
-            {
+        today = timezone.localdate()
+        book_weeks = []
+        for week in range(1, book.duration_weeks + 1):
+            due_on = book.started_on + timedelta(days=week * 7)
+            week_started = book.started_on + timedelta(days=(week - 1) * 7) <= today
+            section = sections_by_week.get(week)
+            section_is_complete = (
+                section is not None
+                and (section.pk, request.user.pk) in completed_section_users
+            )
+            member_progress = []
+            for member in members:
+                review_exists = (week, member.user_id) in reviews_by_week_user
+                section_complete = (
+                    section is not None
+                    and (section.pk, member.user_id) in completed_section_users
+                )
+                member_progress.append({
+                    'user': member.user,
+                    'review_status': (
+                        'reviewed'
+                        if review_exists
+                        else 'behind'
+                        if due_on <= today
+                        else 'in_progress'
+                        if week_started
+                        else 'upcoming'
+                    ),
+                    'reading_status': (
+                        'complete'
+                        if section_complete
+                        else 'behind'
+                        if due_on <= today
+                        else 'in_progress'
+                        if week_started
+                        else 'upcoming'
+                    ),
+                })
+            book_weeks.append({
                 'number': week,
-                'due_on': book.started_on + timedelta(days=week * 7),
-                'reviews': reviews_by_week.get(week, []),
+                'starts_on': book.started_on + timedelta(days=(week - 1) * 7),
+                'due_on': due_on,
+                'section': section,
+                'section_status': (
+                    'complete'
+                    if section_is_complete
+                    else 'behind'
+                    if due_on <= today
+                    else 'in_progress'
+                    if week_started
+                    else 'upcoming'
+                ),
+                'reviews': reviews_by_week.get(week, []) if week <= available_week_count else [],
                 'reviewed_count': sum(
                     (week, member.user_id) in reviews_by_week_user
                     for member in members
                 ),
-                'member_progress': [
-                    {
-                        'user': member.user,
-                        'review': reviews_by_week_user.get((week, member.user_id)),
-                        'status': (
-                            'reviewed'
-                            if (week, member.user_id) in reviews_by_week_user
-                            else (
-                                'behind'
-                                if book.started_on + timedelta(days=week * 7) <= timezone.localdate()
-                                else 'in_progress'
-                            )
-                        ),
-                    }
-                    for member in members
-                ],
-            }
-            for week in available_weeks
-        ]
+                'member_progress': member_progress,
+            })
 
     if can_manage_members and request.method == 'POST' and 'assign_book' in request.POST:
         book_form = PodBookForm(request.POST, request.FILES)
         if book_form.is_valid():
-            with transaction.atomic():
-                pod.reading_books.filter(is_current=True).update(is_current=False)
-                book = PodBook.objects.create(
-                    pod=pod,
-                    title=book_form.cleaned_data['title'],
-                    document=book_form.cleaned_data['document'],
-                    duration_weeks=book_form.cleaned_data['duration_weeks'],
-                    assigned_by=request.user,
+            uploaded_document = book_form.cleaned_data['document']
+            try:
+                reader_pdf_content, section_plan = prepare_book_document(
+                    uploaded_document,
+                    book_form.cleaned_data['duration_weeks'],
                 )
-            messages.success(request, f"'{book.title}' is now the reading assignment for {pod.name}.")
-            return redirect('pod_detail', pod_id=pod.id)
+            except PodBookDocumentError as error:
+                book_form.add_error('document', str(error))
+            else:
+                with transaction.atomic():
+                    pod.reading_books.filter(is_current=True).update(is_current=False)
+                    book = PodBook.objects.create(
+                        pod=pod,
+                        title=book_form.cleaned_data['title'],
+                        document=uploaded_document,
+                        duration_weeks=book_form.cleaned_data['duration_weeks'],
+                        assigned_by=request.user,
+                    )
+                    if Path(book.document.name).suffix.lower() == '.pdf':
+                        book.reader_pdf.name = book.document.name
+                        book.save(update_fields=['reader_pdf'])
+                    else:
+                        reader_name = (
+                            f'{slugify(book.title) or "pod-book"}-'
+                            f'{uuid.uuid4().hex}.pdf'
+                        )
+                        book.reader_pdf.save(
+                            reader_name,
+                            ContentFile(reader_pdf_content),
+                            save=True,
+                        )
+                    PodBookSection.objects.bulk_create([
+                        PodBookSection(book=book, **section)
+                        for section in section_plan
+                    ])
+                messages.success(request, f"'{book.title}' is ready to read in {pod.name}.")
+                return redirect('pod_detail', pod_id=pod.id)
     elif can_participate and book and request.method == 'POST' and 'submit_book_review' in request.POST:
         days_since_start = (timezone.localdate() - book.started_on).days
         available_week_count = min(
@@ -369,6 +455,8 @@ def pod_detail_view(request, pod_id):
         'book_form': book_form,
         'book_review_form': book_review_form,
         'book_weeks': book_weeks,
+        'book_completion_percent': book_completion_percent,
+        'available_week_count': available_week_count,
         'can_manage_book': can_manage_members,
         'can_review_book': can_participate,
     }
@@ -384,6 +472,153 @@ def pod_book_file_view(request, pod_id, book_id):
         book.document.open('rb'),
         as_attachment=True,
         filename=Path(book.document.name).name,
+    )
+
+
+def _ensure_book_reader(book):
+    if book.reader_pdf and book.sections.exists():
+        return
+
+    book.document.open('rb')
+    try:
+        pdf_content, section_plan = prepare_book_document(
+            book.document,
+            book.duration_weeks,
+        )
+    finally:
+        book.document.close()
+
+    with transaction.atomic():
+        locked_book = PodBook.objects.select_for_update().get(pk=book.pk)
+        if not locked_book.reader_pdf:
+            if Path(locked_book.document.name).suffix.lower() == '.pdf':
+                locked_book.reader_pdf.name = locked_book.document.name
+                locked_book.save(update_fields=['reader_pdf'])
+            else:
+                reader_name = (
+                    f'{slugify(locked_book.title) or "pod-book"}-'
+                    f'{uuid.uuid4().hex}.pdf'
+                )
+                locked_book.reader_pdf.save(
+                    reader_name,
+                    ContentFile(pdf_content),
+                    save=True,
+                )
+        if not locked_book.sections.exists():
+            PodBookSection.objects.bulk_create([
+                PodBookSection(book=locked_book, **section)
+                for section in section_plan
+            ])
+        book.reader_pdf = locked_book.reader_pdf
+        book.refresh_from_db()
+
+
+@login_required
+def pod_book_read_view(request, pod_id, book_id):
+    book = get_object_or_404(
+        PodBook,
+        pk=book_id,
+        pod_id=pod_id,
+        is_current=True,
+    )
+    if not user_has_pod_access(request.user, book.pod):
+        return HttpResponseForbidden('You do not have permission to read this Pod book.')
+
+    try:
+        _ensure_book_reader(book)
+    except PodBookDocumentError as error:
+        messages.error(request, f'This book could not be prepared for reading: {error}')
+        return redirect('pod_detail', pod_id=pod_id)
+
+    requested_week = request.GET.get('week', '1')
+    if not requested_week.isdecimal():
+        raise Http404('That reading week does not exist.')
+    section = get_object_or_404(
+        PodBookSection.objects.filter(book=book),
+        week_number=int(requested_week),
+    )
+    progress_by_section = {
+        progress.section_id: progress
+        for progress in PodBookSectionProgress.objects.filter(
+            section__book=book,
+            user=request.user,
+        )
+    }
+    sections = list(book.sections.all())
+    completed_count = sum(section_item.pk in progress_by_section for section_item in sections)
+    progress_percent = completed_count * 100 // len(sections) if sections else 0
+    week_sections = [
+        {
+            'section': section_item,
+            'is_complete': section_item.pk in progress_by_section,
+        }
+        for section_item in sections
+    ]
+    return render(request, 'pods/book_reader.html', {
+        'pod': book.pod,
+        'book': book,
+        'section': section,
+        'week_sections': week_sections,
+        'is_complete': section.pk in progress_by_section,
+        'progress_percent': progress_percent,
+        'can_review_book': user_can_participate_in_pod(request.user, book.pod),
+        'reader_file_url': reverse(
+            'pod_book_read_file',
+            args=[book.pod_id, book.pk],
+        ),
+    })
+
+
+@login_required
+def pod_book_read_file_view(request, pod_id, book_id):
+    book = get_object_or_404(
+        PodBook,
+        pk=book_id,
+        pod_id=pod_id,
+        is_current=True,
+    )
+    if not user_has_pod_access(request.user, book.pod):
+        return HttpResponseForbidden('You do not have permission to read this Pod book.')
+    if not book.reader_pdf:
+        return HttpResponseForbidden('The in-browser book reader is not prepared yet.')
+    return FileResponse(
+        book.reader_pdf.open('rb'),
+        as_attachment=False,
+        filename=Path(book.reader_pdf.name).name,
+        content_type='application/pdf',
+    )
+
+
+@login_required
+@require_POST
+def pod_book_section_progress_view(request, pod_id, book_id, section_id):
+    book = get_object_or_404(
+        PodBook,
+        pk=book_id,
+        pod_id=pod_id,
+        is_current=True,
+    )
+    if not user_has_pod_access(request.user, book.pod):
+        return HttpResponseForbidden('You do not have permission to update this Pod book.')
+    if not user_can_participate_in_pod(request.user, book.pod):
+        return HttpResponseForbidden('Only Pod participants can update reading progress.')
+
+    section = get_object_or_404(PodBookSection, pk=section_id, book=book)
+    if 'mark_incomplete' in request.POST:
+        PodBookSectionProgress.objects.filter(
+            section=section,
+            user=request.user,
+        ).delete()
+        messages.info(request, 'Reading progress updated.')
+    else:
+        PodBookSectionProgress.objects.get_or_create(
+            section=section,
+            user=request.user,
+        )
+        messages.success(request, 'Section marked as read.')
+
+    return redirect(
+        f"{reverse('pod_book_read', args=[pod_id, book.pk])}?week={section.week_number}"
     )
 
 
@@ -441,8 +676,9 @@ def pod_delete_view(request, pod_id):
             if field:
                 files[field.name] = field.storage
     for book in pod.reading_books.all():
-        if book.document:
-            files[book.document.name] = book.document.storage
+        for field in (book.document, book.reader_pdf):
+            if field:
+                files[field.name] = field.storage
 
     pod_name = pod.name
     with transaction.atomic():
@@ -453,7 +689,9 @@ def pod_delete_view(request, pod_id):
         lesson_references_file = Lesson.objects.filter(
             Q(audio_file=name) | Q(pdf_resource=name)
         ).exists()
-        book_references_file = PodBook.objects.filter(document=name).exists()
+        book_references_file = PodBook.objects.filter(
+            Q(document=name) | Q(reader_pdf=name)
+        ).exists()
         if not lesson_references_file and not book_references_file:
             storage.delete(name)
 

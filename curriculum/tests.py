@@ -85,6 +85,53 @@ class CurriculumVisibilityTests(TestCase):
         self.assertEqual(course_response.status_code, 200)
         self.assertContains(course_response, lesson.title)
 
+    def test_admin_curriculum_lists_every_lesson_counted_on_dashboard(self):
+        admin = CustomUser.objects.create_user(
+            username='curriculum-admin',
+            password='test-password',
+            is_staff=True,
+        )
+        standalone = Lesson.objects.create(
+            title='Standalone lesson',
+            content='Standalone content.',
+            created_by=self.leader,
+            is_master_template=True,
+        )
+        course = Course.objects.create(
+            title='Admin course',
+            pod=self.pod,
+            created_by=self.leader,
+            is_published=False,
+        )
+        module = Module.objects.create(course=course, title='Admin module')
+        course_lesson = Lesson.objects.create(
+            title='Lesson inside course',
+            content='Course content.',
+            module=module,
+            pod=self.pod,
+            created_by=self.leader,
+        )
+        pod_lesson = Lesson.objects.create(
+            title='Standalone Pod lesson',
+            content='Pod content.',
+            pod=self.pod,
+            created_by=self.leader,
+        )
+        self.client.force_login(admin)
+
+        curriculum_response = self.client.get(reverse('lesson_list'), secure=True)
+        dashboard_response = self.client.get(reverse('admin_dashboard'), secure=True)
+
+        self.assertEqual(curriculum_response.status_code, 200)
+        self.assertEqual(dashboard_response.context['total_lessons'], Lesson.objects.count())
+        self.assertEqual(
+            len(curriculum_response.context['all_lessons']),
+            dashboard_response.context['total_lessons'],
+        )
+        self.assertContains(curriculum_response, 'All Lessons')
+        for lesson in (standalone, course_lesson, pod_lesson):
+            self.assertContains(curriculum_response, lesson.title)
+
     def test_non_leader_cannot_open_lesson_creation(self):
         self.client.force_login(self.member)
 
@@ -298,6 +345,7 @@ class LessonManagementTests(TestCase):
 
         self.assertContains(detail_response, 'Edit lesson')
         self.assertContains(detail_response, 'Delete lesson')
+        self.assertContains(detail_response, 'data-confirm-delete')
         self.assertRedirects(
             edit_response,
             reverse('lesson_detail', args=[self.lesson.pk]),

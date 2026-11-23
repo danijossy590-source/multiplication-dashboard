@@ -161,6 +161,7 @@ class PodBook(models.Model):
     pod = models.ForeignKey(Pod, on_delete=models.CASCADE, related_name='reading_books')
     title = models.CharField(max_length=200)
     document = models.FileField(upload_to='pods/books/')
+    reader_pdf = models.FileField(upload_to='pods/books/readers/', blank=True)
     duration_weeks = models.PositiveSmallIntegerField(
         default=4,
         validators=[MinValueValidator(1), MaxValueValidator(52)],
@@ -187,6 +188,51 @@ class PodBook(models.Model):
 
     def __str__(self):
         return f'{self.title} - {self.pod.name}'
+
+
+class PodBookSection(models.Model):
+    book = models.ForeignKey(PodBook, on_delete=models.CASCADE, related_name='sections')
+    week_number = models.PositiveSmallIntegerField()
+    title = models.CharField(max_length=200)
+    start_page = models.PositiveSmallIntegerField()
+    end_page = models.PositiveSmallIntegerField()
+
+    class Meta:
+        ordering = ['week_number', 'id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['book', 'week_number'],
+                name='unique_pod_book_week_section',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.book.title}: week {self.week_number} - {self.title}'
+
+
+class PodBookSectionProgress(models.Model):
+    section = models.ForeignKey(
+        PodBookSection,
+        on_delete=models.CASCADE,
+        related_name='progress_records',
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='pod_book_section_progress',
+    )
+    completed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['section', 'user'],
+                name='unique_pod_book_section_progress',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.user.username} completed {self.section}'
 
 
 class PodBookReview(models.Model):
