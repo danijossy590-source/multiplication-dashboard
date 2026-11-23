@@ -444,6 +444,48 @@ class LocalLessonAITests(TestCase):
         open_url.assert_not_called()
 
     @override_settings(AI_PROVIDER='gemini', GEMINI_API_KEY='test-api-key')
+    def test_gemini_retries_temporary_service_unavailable_responses(self):
+        error = HTTPError(
+            'https://generativelanguage.googleapis.com/',
+            503,
+            'Service unavailable',
+            {},
+            BytesIO(),
+        )
+        response_body = json.dumps({
+            'candidates': [{
+                'content': {
+                    'parts': [{
+                        'text': json.dumps({
+                            'summary': 'A short lesson summary.',
+                            'discussion_questions': ['Question one?'],
+                        }),
+                    }],
+                },
+            }],
+        }).encode()
+
+        with (
+            patch('curriculum.ai.urlopen', side_effect=[error, BytesIO(response_body)]) as open_url,
+            patch('curriculum.ai.time.sleep') as sleep,
+        ):
+            result = generate_lesson_suggestions('A lesson about prayer.')
+
+        self.assertEqual(result['summary'], 'A short lesson summary.')
+        self.assertEqual(open_url.call_count, 2)
+        sleep.assert_called_once_with(1)
+
+        with (
+            patch('curriculum.ai.urlopen', side_effect=error) as open_url,
+            patch('curriculum.ai.time.sleep') as sleep,
+        ):
+            with self.assertRaisesMessage(LessonAIError, 'Gemini returned HTTP 503'):
+                generate_lesson_suggestions('A lesson about prayer.')
+
+        self.assertEqual(open_url.call_count, 3)
+        self.assertEqual([call.args[0] for call in sleep.call_args_list], [1, 2])
+
+    @override_settings(AI_PROVIDER='gemini', GEMINI_API_KEY='test-api-key')
     def test_gemini_http_errors_identify_model_key_and_quota_problems(self):
         cases = [
             (404, 'could not find the configured model'),

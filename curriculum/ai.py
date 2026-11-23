@@ -1,4 +1,5 @@
 import json
+import time
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
@@ -86,36 +87,40 @@ def _generate_with_gemini(prompt, response_schema=None, max_output_tokens=500):
         method='POST',
     )
 
-    try:
-        with urlopen(request, timeout=settings.GEMINI_TIMEOUT) as response:
-            payload = json.loads(response.read().decode('utf-8'))
-        parts = payload['candidates'][0]['content']['parts']
-        return ''.join(part['text'] for part in parts if isinstance(part.get('text'), str))
-    except HTTPError as error:
-        if error.code == 404:
-            message = (
-                'Gemini could not find the configured model (HTTP 404). '
-                'Check GEMINI_MODEL and the Gemini API endpoint.'
-            )
-        elif error.code in {400, 401, 403}:
-            message = (
-                f'Gemini rejected the API key or request (HTTP {error.code}). '
-                'Check GEMINI_API_KEY, model access, and request settings.'
-            )
-        elif error.code == 429:
-            message = (
-                'Gemini rate or quota limit reached (HTTP 429). '
-                'Check the project usage limits and billing.'
-            )
-        else:
-            message = f'Gemini returned HTTP {error.code}. Check the provider status and try again.'
-        raise LessonAIError(message) from error
-    except (URLError, TimeoutError, OSError) as error:
-        raise LessonAIError(
-            'Gemini could not be reached. Check the network connection and API endpoint.'
-        ) from error
-    except (IndexError, KeyError, TypeError, ValueError) as error:
-        raise LessonAIError('Gemini returned an invalid response. Please try again.') from error
+    for attempt in range(3):
+        try:
+            with urlopen(request, timeout=settings.GEMINI_TIMEOUT) as response:
+                payload = json.loads(response.read().decode('utf-8'))
+            parts = payload['candidates'][0]['content']['parts']
+            return ''.join(part['text'] for part in parts if isinstance(part.get('text'), str))
+        except HTTPError as error:
+            if error.code in {500, 502, 503, 504} and attempt < 2:
+                time.sleep(2 ** attempt)
+                continue
+            if error.code == 404:
+                message = (
+                    'Gemini could not find the configured model (HTTP 404). '
+                    'Check GEMINI_MODEL and the Gemini API endpoint.'
+                )
+            elif error.code in {400, 401, 403}:
+                message = (
+                    f'Gemini rejected the API key or request (HTTP {error.code}). '
+                    'Check GEMINI_API_KEY, model access, and request settings.'
+                )
+            elif error.code == 429:
+                message = (
+                    'Gemini rate or quota limit reached (HTTP 429). '
+                    'Check the project usage limits and billing.'
+                )
+            else:
+                message = f'Gemini returned HTTP {error.code}. Check the provider status and try again.'
+            raise LessonAIError(message) from error
+        except (URLError, TimeoutError, OSError) as error:
+            raise LessonAIError(
+                'Gemini could not be reached. Check the network connection and API endpoint.'
+            ) from error
+        except (IndexError, KeyError, TypeError, ValueError) as error:
+            raise LessonAIError('Gemini returned an invalid response. Please try again.') from error
 
 
 def _generate_with_openai_compatible_api(prompt, provider, max_output_tokens=500):
