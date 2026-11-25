@@ -24,6 +24,7 @@
 
     {% if can_manage %}
     <div class="flex flex-wrap gap-3">
+        <a href="{% url 'course_edit' course.id %}" class="rounded-lg border border-indigo-800 px-4 py-2 text-sm font-semibold text-indigo-800 hover:bg-indigo-50">Edit course</a>
         <a href="{% url 'module_create' course.id %}" class="rounded-lg bg-indigo-800 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-900">+ Add module</a>
         <a href="{% url 'lesson_create' %}" class="rounded-lg border border-indigo-800 px-4 py-2 text-sm font-semibold text-indigo-800 hover:bg-indigo-50">+ Add lesson</a>
     </div>

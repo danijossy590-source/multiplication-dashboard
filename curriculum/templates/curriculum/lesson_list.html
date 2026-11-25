@@ -16,7 +16,8 @@
         </div>
         {% if can_create_lessons %}
         <div class="flex flex-wrap gap-2">
-            <a href="{% url 'course_create' %}" class="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800"><svg class="h-4 w-4" aria-hidden="true"><use href="#icon-plus"></use></svg>Create Course</a>
+            <a href="{% url 'course_create' %}" class="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800"><svg class="h-4 w-4" aria-hidden="true"><use href="#icon-plus"></use></svg>Create course manually</a>
+            <a href="{% url 'course_generate' %}" class="inline-flex items-center gap-2 rounded-xl bg-violet-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-800"><svg class="h-4 w-4" aria-hidden="true"><use href="#icon-sparkles"></use></svg>Create course with AI</a>
             <a href="{% url 'lesson_create' %}" class="inline-flex items-center gap-2 rounded-xl bg-indigo-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-900"><svg class="h-4 w-4" aria-hidden="true"><use href="#icon-plus"></use></svg>Upload Lesson</a>
         </div>
         {% endif %}
@@ -38,6 +39,12 @@
                     <div class="flex justify-between text-xs text-gray-600"><span>{{ course.modules.count }} modules</span><span>{{ course.completed_lessons }}/{{ course.total_lessons }} lessons complete</span></div>
                     <div class="mt-2 h-2 overflow-hidden rounded-full bg-gray-200" role="progressbar" aria-valuenow="{{ course.progress_percent }}" aria-valuemin="0" aria-valuemax="100" aria-label="{{ course.title }} progress"><div class="h-full bg-emerald-600" style="width: {{ course.progress_percent }}%"></div></div>
                 </div>
+                {% if user.is_staff or user.is_superuser %}
+                <p class="mt-3 text-xs font-medium {% if not course.pod and not course.is_published %}text-amber-700{% else %}text-gray-500{% endif %}">
+                    {% if course.pod %}Visible to {{ course.pod.name }} members{% elif course.is_published %}Published for all learners{% else %}Unpublished — learners cannot see this course{% endif %}
+                </p>
+                <a href="{% url 'course_edit' course.id %}" class="mt-3 text-sm font-semibold text-indigo-700 hover:underline">Edit course visibility</a>
+                {% endif %}
                 <a href="{% url 'course_detail' course.id %}" class="mt-4 inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-800 px-4 py-2.5 font-semibold text-white hover:bg-indigo-900">Open course<svg class="h-4 w-4" aria-hidden="true"><use href="#icon-arrow-right"></use></svg></a>
             </article>
             {% endfor %}

@@ -21,7 +21,7 @@ class Course(models.Model):
         null=True,
         related_name='created_courses',
     )
-    is_published = models.BooleanField(default=False)
+    is_published = models.BooleanField(default=True)
     order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 

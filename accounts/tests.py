@@ -261,11 +261,16 @@ class AdminRolePreservationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Platform operations")
         self.assertNotContains(response, "Upload New Lesson")
-        self.assertContains(response, reverse("profile"))
+        self.assertContains(response, reverse("admin_users"))
         self.assertContains(response, reverse("multiplication_dashboard"))
         self.assertContains(response, reverse("pod_list"))
         self.assertContains(response, reverse("lesson_list"))
         self.assertContains(response, reverse("question_list"))
+
+        users_response = self.client.get(reverse("admin_users"), secure=True)
+        self.assertEqual(users_response.status_code, 200)
+        self.assertContains(users_response, "Manage users")
+        self.assertContains(users_response, reverse("admin_dashboard"))
 
 
 class EnsureAdminsCommandTests(TestCase):

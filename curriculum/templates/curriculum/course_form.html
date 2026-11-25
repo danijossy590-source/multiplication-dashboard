@@ -1,17 +1,17 @@
 {% extends 'base.html' %}
 
-{% block title %}Create Course | Multiply{% endblock %}
+{% block title %}{% if course %}Edit Course{% else %}Create Course{% endif %} | Multiply{% endblock %}
 
 {% block content %}
 <section class="mx-auto max-w-2xl rounded-xl bg-white p-6 shadow sm:p-8">
-    <h1 class="text-2xl font-bold text-indigo-950">Create a Course</h1>
-    <p class="mt-2 text-sm text-gray-600">Create the course shell first, then add ordered modules and lessons.</p>
+    <h1 class="text-2xl font-bold text-indigo-950">{% if course %}Edit course{% else %}Create a course{% endif %}</h1>
+    <p class="mt-2 text-sm text-gray-600">Create the course shell here, then add modules and upload lessons from the course page. Leave Pod blank and publish the course to make it available to all learners; Pod courses are limited to that Pod. Course lessons also appear in the All Lessons library for learners who can access the course.</p>
     <form method="post" class="mt-6 space-y-4">
         {% csrf_token %}
         {{ form.as_p }}
         <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <a href="{% url 'lesson_list' %}" class="rounded-lg border border-gray-300 px-4 py-2.5 text-center font-semibold text-gray-700 hover:bg-gray-50">Cancel</a>
-            <button type="submit" class="rounded-lg bg-indigo-800 px-5 py-2.5 font-semibold text-white hover:bg-indigo-900">Create course</button>
+            <button type="submit" class="rounded-lg bg-indigo-800 px-5 py-2.5 font-semibold text-white hover:bg-indigo-900">{% if course %}Save course{% else %}Create course{% endif %}</button>
         </div>
     </form>
 </section>

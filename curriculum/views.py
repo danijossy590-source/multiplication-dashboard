@@ -27,6 +27,7 @@ from .models import (
     QuizQuestion,
 )
 from .forms import (
+    CourseForm,
     CourseGenerationForm,
     LessonForm,
     ModuleForm,
@@ -234,6 +235,28 @@ def course_detail_view(request, course_id):
     return render(request, 'curriculum/course_detail.html', context)
 
 
+@login_required
+def course_edit_view(request, course_id):
+    course = get_object_or_404(Course, pk=course_id)
+    if not _can_manage_course(request.user, course):
+        return HttpResponseForbidden('You cannot edit this course.')
+
+    if request.method == 'POST':
+        form = CourseForm(request.POST, instance=course, user=request.user)
+        if form.is_valid():
+            course = form.save()
+            messages.success(request, f'Course "{course.title}" was updated.')
+            return redirect('course_detail', course_id=course.pk)
+    else:
+        form = CourseForm(instance=course, user=request.user)
+
+    return render(
+        request,
+        'curriculum/course_form.html',
+        {'form': form, 'course': course},
+    )
+
+
 def _course_builder_view(request):
     if not (
         request.user.is_staff
@@ -326,7 +349,25 @@ def _course_builder_view(request):
 
 @login_required
 def course_create_view(request):
-    return _course_builder_view(request)
+    if not (
+        request.user.is_staff
+        or request.user.is_superuser
+        or request.user.leading_pods.exists()
+    ):
+        return HttpResponseForbidden('Only admins and pod leaders can create courses.')
+
+    form = CourseForm(
+        request.POST if request.method == 'POST' else None,
+        user=request.user,
+    )
+    if request.method == 'POST' and form.is_valid():
+        course = form.save(commit=False)
+        course.created_by = request.user
+        course.save()
+        messages.success(request, f'Course "{course.title}" was created.')
+        return redirect('course_detail', course_id=course.pk)
+
+    return render(request, 'curriculum/course_form.html', {'form': form})
 
 
 @login_required

@@ -46,8 +46,9 @@ class CurriculumVisibilityTests(TestCase):
         response = self.client.get(reverse('lesson_list'), secure=True)
 
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, 'Upload New Lesson')
-        self.assertNotContains(response, 'Create Progressive Course')
+        self.assertNotContains(response, 'Upload Lesson')
+        self.assertNotContains(response, 'Create course manually')
+        self.assertNotContains(response, 'Create course with AI')
 
     def test_pod_leader_sees_upload_lesson_action(self):
         self.client.force_login(self.leader)
@@ -55,8 +56,11 @@ class CurriculumVisibilityTests(TestCase):
         response = self.client.get(reverse('lesson_list'), secure=True)
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Upload New Lesson')
-        self.assertContains(response, 'Create Progressive Course')
+        self.assertContains(response, 'Upload Lesson')
+        self.assertContains(response, 'Create course manually')
+        self.assertContains(response, 'Create course with AI')
+        self.assertContains(response, reverse('course_create'))
+        self.assertContains(response, reverse('course_generate'))
 
     def test_pod_course_lessons_appear_in_curriculum_before_publication(self):
         course = Course.objects.create(
@@ -132,6 +136,62 @@ class CurriculumVisibilityTests(TestCase):
         for lesson in (standalone, course_lesson, pod_lesson):
             self.assertContains(curriculum_response, lesson.title)
 
+    def test_admin_can_publish_global_course_and_expose_embedded_lessons_to_members(self):
+        admin = CustomUser.objects.create_user(
+            username='course-admin',
+            password='test-password',
+            is_staff=True,
+        )
+        course = Course.objects.create(
+            title='Hidden global course',
+            created_by=admin,
+            is_published=False,
+        )
+        module = Module.objects.create(course=course, title='Course module')
+        lesson = Lesson.objects.create(
+            title='Lesson available in library',
+            content='Lesson content.',
+            module=module,
+            created_by=admin,
+        )
+        self.client.force_login(admin)
+
+        edit_response = self.client.get(
+            reverse('course_edit', args=[course.pk]),
+            secure=True,
+        )
+        self.assertEqual(edit_response.status_code, 200)
+        response = self.client.post(
+            reverse('course_edit', args=[course.pk]),
+            {
+                'title': course.title,
+                'description': course.description,
+                'pod': '',
+                'order': course.order,
+                'is_published': 'on',
+            },
+            secure=True,
+        )
+
+        self.assertRedirects(
+            response,
+            reverse('course_detail', args=[course.pk]),
+            fetch_redirect_response=False,
+        )
+        course.refresh_from_db()
+        self.assertTrue(course.is_published)
+
+        self.client.force_login(self.member)
+        library_response = self.client.get(reverse('lesson_list'), secure=True)
+        course_response = self.client.get(
+            reverse('course_detail', args=[course.pk]),
+            secure=True,
+        )
+        self.assertContains(library_response, course.title)
+        self.assertContains(library_response, lesson.title)
+        self.assertEqual(course_response.status_code, 200)
+        self.assertContains(course_response, lesson.title)
+
     def test_non_leader_cannot_open_lesson_creation(self):
         self.client.force_login(self.member)
 
@@ -142,6 +202,15 @@ class CurriculumVisibilityTests(TestCase):
             reverse('lesson_list'),
             fetch_redirect_response=False,
         )
+
+    def test_non_leader_cannot_open_course_creation(self):
+        self.client.force_login(self.member)
+
+        manual_response = self.client.get(reverse('course_create'), secure=True)
+        ai_response = self.client.get(reverse('course_generate'), secure=True)
+
+        self.assertEqual(manual_response.status_code, 403)
+        self.assertEqual(ai_response.status_code, 403)
 
     def test_leader_can_upload_word_lesson_and_publish_converted_pdf(self):
         self.client.force_login(self.leader)
@@ -773,7 +842,7 @@ class AICourseGenerationTests(TestCase):
             return_value=self._plan(),
         ) as generate_plan:
             response = self.client.post(
-                reverse('course_create'),
+                reverse('course_generate'),
                 self._generation_data(),
                 secure=True,
             )
@@ -925,24 +994,50 @@ class CourseLearningFlowTests(TestCase):
         self.assertContains(response, 'Mark lesson complete')
         self.assertContains(response, reverse('lesson_detail', args=[self.lesson_two.pk]))
 
-    def test_course_creation_starts_progressive_builder_and_leader_can_add_module(self):
+    def test_manual_course_creation_and_module_management(self):
         self.client.force_login(self.leader)
         response = self.client.get(reverse('course_create'), secure=True)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Step 1: Name your course')
-        self.assertContains(response, 'Step 3: Select lessons')
+        self.assertContains(response, 'Create a course')
+        self.assertContains(response, 'course shell')
+
+        response = self.client.post(
+            reverse('course_create'),
+            {
+                'title': 'A manually created course',
+                'description': 'A course built without AI.',
+                'pod': str(self.leader_pod.pk),
+                'order': '0',
+                'is_published': 'on',
+            },
+            secure=True,
+        )
+        manual_course = Course.objects.get(title='A manually created course')
+        self.assertRedirects(
+            response,
+            reverse('course_detail', args=[manual_course.pk]),
+            fetch_redirect_response=False,
+        )
 
         module_response = self.client.post(
-            reverse('module_create', args=[self.course.pk]),
+            reverse('module_create', args=[manual_course.pk]),
             {'title': 'First Module', 'description': '', 'order': '1'},
             secure=True,
         )
         self.assertRedirects(
             module_response,
-            reverse('course_detail', args=[self.course.pk]),
+            reverse('course_detail', args=[manual_course.pk]),
             fetch_redirect_response=False,
         )
-        self.assertTrue(self.course.modules.filter(title='First Module').exists())
+        self.assertTrue(manual_course.modules.filter(title='First Module').exists())
+
+    def test_ai_course_builder_is_available_on_its_own_route(self):
+        self.client.force_login(self.leader)
+        response = self.client.get(reverse('course_generate'), secure=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Step 1: Name your course')
+        self.assertContains(response, 'Step 3: Select lessons')
 
     def test_learner_can_render_quiz_and_course_manager_cannot_be_used_by_learner(self):
         LessonProgress.objects.create(user=self.learner, lesson=self.lesson_one)

@@ -130,6 +130,9 @@ class CourseForm(forms.ModelForm):
             self.fields['pod'].queryset = Pod.objects.filter(leader=user).order_by('name')
             self.fields['pod'].required = True
             self.fields['pod'].help_text = 'Choose one of the Pods you lead.'
+            if self.instance.pk and self.instance.pod_id is None:
+                self.fields['pod'].required = False
+                self.fields['pod'].help_text = 'Leave blank to keep this course available to all learners.'
 
 
 class CourseGenerationForm(forms.Form):
