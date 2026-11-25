@@ -126,6 +126,13 @@ class ProfileEditTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, reverse("edit_profile"))
 
+    def test_member_navigation_links_to_each_main_section(self):
+        response = self.client.get(reverse("multiplication_dashboard"), secure=True)
+
+        self.assertEqual(response.status_code, 200)
+        for route_name in ("multiplication_dashboard", "profile", "pod_list", "lesson_list", "question_list", "notifications"):
+            self.assertContains(response, reverse(route_name))
+
     def test_edit_profile_updates_allowed_fields(self):
         response = self.client.post(
             reverse("edit_profile"),
@@ -254,6 +261,11 @@ class AdminRolePreservationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Platform operations")
         self.assertNotContains(response, "Upload New Lesson")
+        self.assertContains(response, reverse("profile"))
+        self.assertContains(response, reverse("multiplication_dashboard"))
+        self.assertContains(response, reverse("pod_list"))
+        self.assertContains(response, reverse("lesson_list"))
+        self.assertContains(response, reverse("question_list"))
 
 
 class EnsureAdminsCommandTests(TestCase):

@@ -79,7 +79,7 @@
                 </span>
                 <span>Camp of Gilgal <span class="text-indigo-300">| Multiply</span></span>
             </a>
-            <details class="w-full sm:w-auto">
+            <details id="primary-navigation-menu" class="w-full sm:w-auto" open>
                 <summary aria-controls="primary-links" class="inline-flex w-fit cursor-pointer list-none items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-sm font-semibold sm:hidden">
                     <svg class="h-4 w-4" aria-hidden="true"><use href="#icon-menu"></use></svg>Menu
                 </summary>
@@ -88,6 +88,7 @@
                     <span class="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-indigo-100">Hello, {{ user.username }}</span>
                     {% if user.is_staff or user.is_superuser %}
                         <a href="{% url 'admin_dashboard' %}" {% if request.resolver_match.url_name == 'admin_dashboard' %}aria-current="page"{% endif %}><svg class="h-4 w-4" aria-hidden="true"><use href="#icon-shield"></use></svg>Admin Portal</a>
+                        <a href="{% url 'profile' %}" {% if request.resolver_match.url_name == 'profile' or request.resolver_match.url_name == 'edit_profile' %}aria-current="page"{% endif %}><svg class="h-4 w-4" aria-hidden="true"><use href="#icon-user"></use></svg>My Profile</a>
                         <a href="{% url 'multiplication_dashboard' %}" {% if request.resolver_match.url_name == 'multiplication_dashboard' %}aria-current="page"{% endif %}><svg class="h-4 w-4" aria-hidden="true"><use href="#icon-chart"></use></svg>Growth</a>
                         <a href="{% url 'pod_list' %}" {% if request.resolver_match.url_name == 'pod_list' or request.resolver_match.url_name == 'pod_detail' %}aria-current="page"{% endif %}><svg class="h-4 w-4" aria-hidden="true"><use href="#icon-users"></use></svg>Pods</a>
                         <a href="{% url 'lesson_list' %}" {% if request.resolver_match.url_name == 'lesson_list' or request.resolver_match.url_name == 'course_detail' or request.resolver_match.url_name == 'lesson_detail' %}aria-current="page"{% endif %}><svg class="h-4 w-4" aria-hidden="true"><use href="#icon-book"></use></svg>Curriculum</a>
@@ -162,6 +163,14 @@
 
     <script>
         (() => {
+            const navigationMenu = document.getElementById('primary-navigation-menu');
+            const desktopNavigation = window.matchMedia('(min-width: 640px)');
+            const syncNavigationMenu = () => {
+                navigationMenu.open = desktopNavigation.matches;
+            };
+            syncNavigationMenu();
+            desktopNavigation.addEventListener('change', syncNavigationMenu);
+
             const dialog = document.getElementById('delete-confirmation-dialog');
             const title = document.getElementById('delete-confirmation-title');
             const message = document.getElementById('delete-confirmation-message');
