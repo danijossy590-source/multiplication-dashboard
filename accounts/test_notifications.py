@@ -1,5 +1,6 @@
 from django.core.management import call_command
 from django.test import TestCase
+from django.urls import reverse
 
 from accounts.models import CustomUser, Mentorship
 from accounts.utils import notify_user, build_discipleship_tree, get_multiplication_stats
@@ -17,6 +18,31 @@ class NotificationFlowTests(TestCase):
         notification = user.notifications.get()
         self.assertEqual(notification.title, 'Welcome')
         self.assertFalse(notification.is_read)
+
+    def test_mark_read_requires_post_and_does_not_navigate_away(self):
+        user = CustomUser.objects.create_user(username='notification-user', password='Pass1234!')
+        notification = notify_user(
+            user,
+            'New activity',
+            'There is a new update.',
+            '/questions/',
+        )
+        self.client.force_login(user)
+        url = reverse('notification_read', args=[notification.pk])
+
+        get_response = self.client.get(url, secure=True)
+        self.assertEqual(get_response.status_code, 405)
+        notification.refresh_from_db()
+        self.assertFalse(notification.is_read)
+
+        post_response = self.client.post(url, secure=True)
+        self.assertRedirects(
+            post_response,
+            reverse('notifications'),
+            fetch_redirect_response=False,
+        )
+        notification.refresh_from_db()
+        self.assertTrue(notification.is_read)
 
     def test_seed_demo_data_creates_demo_records(self):
         call_command('seed_demo_data')

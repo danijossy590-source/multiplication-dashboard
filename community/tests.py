@@ -12,30 +12,48 @@ class CommunityQuestionTests(TestCase):
             password='test-password',
         )
 
-    def test_guest_can_post_named_or_anonymous_public_question(self):
-        response = self.client.post(
-            reverse('question_create'),
+    def test_guest_must_sign_in_to_open_or_post_a_question(self):
+        create_url = reverse('question_create')
+
+        get_response = self.client.get(create_url, secure=True)
+        post_response = self.client.post(
+            create_url,
             {
                 'title': 'A public question',
                 'body': 'What is the next step?',
-                'display_name': 'Curious guest',
-                'is_anonymous': '',
             },
             secure=True,
         )
 
-        question = Question.objects.get()
         self.assertRedirects(
-            response,
-            reverse('question_detail', args=[question.pk]),
+            get_response,
+            f'{reverse("login")}?next={create_url}',
             fetch_redirect_response=False,
         )
-        self.assertIsNone(question.author)
-        self.assertEqual(question.public_author, 'Curious guest')
-        self.assertContains(
-            self.client.get(reverse('question_list'), secure=True),
-            'A public question',
+        self.assertRedirects(
+            post_response,
+            f'{reverse("login")}?next={create_url}',
+            fetch_redirect_response=False,
         )
+        self.assertFalse(Question.objects.exists())
+
+    def test_guest_is_guided_back_to_question_form_after_sign_in(self):
+        create_url = reverse('question_create')
+        login_page = self.client.get(create_url, secure=True, follow=True)
+
+        self.assertContains(login_page, f'name="next" value="{create_url}"')
+
+        response = self.client.post(
+            reverse('login'),
+            {
+                'username': self.member.username,
+                'password': 'test-password',
+                'next': create_url,
+            },
+            secure=True,
+        )
+
+        self.assertRedirects(response, create_url, fetch_redirect_response=False)
 
     def test_signed_in_anonymous_question_retains_private_author(self):
         self.client.force_login(self.member)
@@ -176,3 +194,99 @@ class CommunityQuestionTests(TestCase):
         )
         response = self.client.get(reverse('question_detail', args=[visible_question.pk]), secure=True)
         self.assertNotContains(response, hidden_reply.body)
+
+    def test_author_can_delete_question_and_reply(self):
+        self.client.force_login(self.member)
+        question = Question.objects.create(
+            title='Own question',
+            body='Own body',
+            author=self.member,
+        )
+        reply = Reply.objects.create(
+            question=question,
+            author=self.member,
+            display_name=self.member.username,
+            body='Own reply',
+        )
+
+        reply_response = self.client.post(
+            reverse('reply_delete', args=[reply.pk]),
+            {'confirm_action': 'yes'},
+            secure=True,
+        )
+        self.assertRedirects(
+            reply_response,
+            reverse('question_detail', args=[question.pk]),
+            fetch_redirect_response=False,
+        )
+        self.assertFalse(Reply.objects.filter(pk=reply.pk).exists())
+
+        question_response = self.client.post(
+            reverse('question_delete', args=[question.pk]),
+            {'confirm_action': 'yes'},
+            secure=True,
+        )
+        self.assertRedirects(
+            question_response,
+            reverse('question_list'),
+            fetch_redirect_response=False,
+        )
+        self.assertFalse(Question.objects.filter(pk=question.pk).exists())
+
+    def test_delete_requires_server_confirmation_without_javascript(self):
+        self.client.force_login(self.member)
+        question = Question.objects.create(
+            title='Question requiring confirmation',
+            body='Question body',
+            author=self.member,
+        )
+        url = reverse('question_delete', args=[question.pk])
+
+        confirmation = self.client.post(url, secure=True)
+
+        self.assertEqual(confirmation.status_code, 200)
+        self.assertContains(confirmation, 'This action cannot be undone.')
+        self.assertTrue(Question.objects.filter(pk=question.pk).exists())
+
+        response = self.client.post(url, {'confirm_action': 'yes'}, secure=True)
+
+        self.assertRedirects(
+            response,
+            reverse('question_list'),
+            fetch_redirect_response=False,
+        )
+        self.assertFalse(Question.objects.filter(pk=question.pk).exists())
+
+    def test_user_cannot_delete_another_users_content(self):
+        other = CustomUser.objects.create_user(
+            username='other-member',
+            password='test-password',
+        )
+        question = Question.objects.create(
+            title='Other question',
+            body='Other body',
+            author=other,
+        )
+        reply = Reply.objects.create(
+            question=question,
+            author=other,
+            display_name=other.username,
+            body='Other reply',
+        )
+        self.client.force_login(self.member)
+
+        question_response = self.client.post(
+            reverse('question_delete', args=[question.pk]),
+            secure=True,
+            follow=True,
+        )
+        reply_response = self.client.post(
+            reverse('reply_delete', args=[reply.pk]),
+            secure=True,
+            follow=True,
+        )
+
+        self.assertTrue(Question.objects.filter(pk=question.pk).exists())
+        self.assertTrue(Reply.objects.filter(pk=reply.pk).exists())
+        self.assertContains(question_response, 'You can only delete your own question.')
+        self.assertContains(reply_response, 'You can only delete your own reply.')

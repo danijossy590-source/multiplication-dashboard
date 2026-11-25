@@ -4,22 +4,31 @@
 
 {% block content %}
 <div class="mx-auto max-w-5xl space-y-6">
-    <header class="rounded-2xl bg-gradient-to-br from-indigo-950 to-indigo-800 p-6 text-white shadow sm:p-8">
-        <p class="text-sm font-semibold uppercase tracking-widest text-indigo-200">Community</p>
+    <header class="relative isolate overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-slate-950 via-indigo-950 to-indigo-800 p-6 text-white shadow-xl sm:p-8">
+        <div class="pointer-events-none absolute -right-12 -top-20 -z-10 h-64 w-64 rounded-full bg-indigo-400/20 blur-3xl"></div>
+        <div class="flex items-center gap-3">
+            <span class="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-indigo-100"><svg class="h-5 w-5" aria-hidden="true"><use href="#icon-message"></use></svg></span>
+            <p class="text-sm font-semibold uppercase tracking-widest text-indigo-200">Community</p>
+        </div>
         <div class="mt-2 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
-                <h1 class="text-3xl font-bold">Questions &amp; answers</h1>
+                <h1 class="text-3xl font-extrabold tracking-tight">Questions &amp; answers</h1>
                 <p class="mt-2 max-w-2xl text-sm text-indigo-100">Ask a question, learn from the community, and join the conversation.</p>
             </div>
-            <a href="{% url 'question_create' %}" class="inline-flex justify-center rounded-lg bg-white px-4 py-2.5 text-sm font-bold text-indigo-900 hover:bg-indigo-50">Ask a question</a>
+            {% if user.is_authenticated %}
+            <a href="{% url 'question_create' %}" class="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-indigo-950 shadow-lg hover:-translate-y-0.5 hover:bg-indigo-50"><svg class="h-4 w-4" aria-hidden="true"><use href="#icon-plus"></use></svg>Ask a question</a>
+            {% else %}
+            <a href="{% url 'login' %}?next={% url 'question_create' %}" class="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-indigo-950 shadow-lg hover:-translate-y-0.5 hover:bg-indigo-50"><svg class="h-4 w-4" aria-hidden="true"><use href="#icon-login"></use></svg>Log in to ask a question</a>
+            {% endif %}
         </div>
         <p class="mt-4 text-xs text-indigo-200">Questions and replies are public. Do not include private or sensitive information.</p>
     </header>
 
     <section aria-label="Recent community questions" class="space-y-3">
         {% for question in page_obj %}
-        <article class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+        <article class="site-card site-card-hover p-5 sm:p-6">
             <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
+                <span class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-indigo-50 text-indigo-700"><svg class="h-4 w-4" aria-hidden="true"><use href="#icon-user"></use></svg></span>
                 <span class="font-semibold text-indigo-800">{{ question.public_author }}</span>
                 <span aria-hidden="true">&middot;</span>
                 <time datetime="{{ question.created_at|date:'c' }}">{{ question.created_at|date:"M j, Y" }}</time>
@@ -28,15 +37,20 @@
                 <a class="hover:text-indigo-700 hover:underline" href="{% url 'question_detail' question.id %}">{{ question.title }}</a>
             </h2>
             <p class="mt-2 whitespace-pre-line text-sm leading-6 text-gray-600">{{ question.body|truncatewords:45 }}</p>
-            <a class="mt-4 inline-flex text-sm font-semibold text-indigo-700 hover:underline" href="{% url 'question_detail' question.id %}">
-                View discussion ({{ question.visible_reply_count }} replies) &rarr;
+            <a class="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-indigo-700 hover:text-indigo-900" href="{% url 'question_detail' question.id %}">
+                View discussion <span class="rounded-full bg-indigo-50 px-2 py-0.5 text-xs text-indigo-800">{{ question.visible_reply_count }} replies</span><svg class="h-4 w-4" aria-hidden="true"><use href="#icon-arrow-right"></use></svg>
             </a>
         </article>
         {% empty %}
-        <div class="rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center">
-            <h2 class="font-bold text-gray-900">No questions yet</h2>
+        <div class="site-card border-dashed p-8 text-center">
+            <span class="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-700"><svg class="h-6 w-6" aria-hidden="true"><use href="#icon-message"></use></svg></span>
+            <h2 class="mt-4 font-bold text-gray-900">No questions yet</h2>
             <p class="mt-1 text-sm text-gray-600">Be the first to start a conversation.</p>
-            <a href="{% url 'question_create' %}" class="mt-4 inline-flex rounded-lg bg-indigo-800 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-900">Ask the first question</a>
+            {% if user.is_authenticated %}
+            <a href="{% url 'question_create' %}" class="mt-4 inline-flex items-center gap-2 rounded-xl bg-indigo-800 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-900"><svg class="h-4 w-4" aria-hidden="true"><use href="#icon-plus"></use></svg>Ask the first question</a>
+            {% else %}
+            <a href="{% url 'login' %}?next={% url 'question_create' %}" class="mt-4 inline-flex items-center gap-2 rounded-xl bg-indigo-800 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-900"><svg class="h-4 w-4" aria-hidden="true"><use href="#icon-login"></use></svg>Log in to ask the first question</a>
+            {% endif %}
         </div>
         {% endfor %}
     </section>
@@ -45,11 +59,11 @@
     <nav class="flex items-center justify-between rounded-lg bg-white p-4 text-sm" aria-label="Question pages">
         {% if page_obj.has_previous %}
         <a class="font-semibold text-indigo-700 hover:underline" href="?page={{ page_obj.previous_page_number }}">&larr; Newer questions</a>
-        {% else %}<span class="text-gray-400">&larr; Newer questions</span>{% endif %}
+        {% else %}<span class="text-gray-500">&larr; Newer questions</span>{% endif %}
         <span class="text-gray-600">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
         {% if page_obj.has_next %}
         <a class="font-semibold text-indigo-700 hover:underline" href="?page={{ page_obj.next_page_number }}">Older questions &rarr;</a>
-        {% else %}<span class="text-gray-400">Older questions &rarr;</span>{% endif %}
+        {% else %}<span class="text-gray-500">Older questions &rarr;</span>{% endif %}
     </nav>
     {% endif %}
 </div>

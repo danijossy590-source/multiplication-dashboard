@@ -13,21 +13,15 @@ class QuestionForm(forms.ModelForm):
 
     class Meta:
         model = Question
-        fields = ['title', 'body', 'display_name', 'is_anonymous']
+        fields = ['title', 'body', 'is_anonymous']
         widgets = {
             'title': forms.TextInput(attrs={'maxlength': 180, 'placeholder': 'What would you like to ask?'}),
-            'display_name': forms.TextInput(attrs={'maxlength': 80, 'placeholder': 'Optional display name'}),
             'is_anonymous': forms.CheckboxInput(),
         }
         labels = {
             'body': 'Question details',
-            'display_name': 'Name to display (guests)',
             'is_anonymous': 'Post anonymously',
         }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields['display_name'].required = False
 
 
 class ReplyForm(forms.ModelForm):

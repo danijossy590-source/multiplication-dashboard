@@ -70,3 +70,7 @@ The public Community Q&A board is available at `/questions/` and is linked from 
 Pod admins and leaders can share the Pod's reusable access code from its detail page. Signed-in users can enter the code from the Pods page to join as members; leaders and admins can rotate the code to invalidate the previous one. Only admins can delete a Pod. Deleting a Pod permanently removes its memberships, chat, meetings, book assignments, courses, lessons, and related progress.
 
 Pod leaders can assign a PDF or Word book to their Pod and set a reading schedule of up to 52 weeks. Pod participants can download the book, see who is on track or behind, and submit or update one review for each available week. Members, leaders, and participating mentors can comment on reviews and reply in threads. Assigning a new book starts a new schedule while retaining the previous assignment and its reviews. Pod-scoped courses and their lessons are available to Pod members from Curriculum, even before the course is published globally.
+
+## Account recovery email
+
+The login page includes a password-reset flow. For local development, reset emails are written to the Django console. Configure SMTP for delivery in a deployed environment using `EMAIL_BACKEND`, `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS`, and `DEFAULT_FROM_EMAIL`. Keep mail credentials in environment variables; never commit them. New accounts require an email address so members can recover their passwords.

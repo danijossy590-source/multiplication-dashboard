@@ -4,53 +4,62 @@
 
 {% block content %}
 <div class="space-y-6 sm:space-y-8">
-    <header class="rounded-2xl bg-slate-950 p-5 text-white shadow-lg sm:p-8">
+    <header class="relative isolate overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-slate-950 via-indigo-950 to-indigo-800 p-5 text-white shadow-xl sm:p-8">
+        <div class="pointer-events-none absolute -right-10 -top-20 -z-10 h-64 w-64 rounded-full bg-indigo-400/20 blur-3xl"></div>
         <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div>
+            <div class="flex items-start gap-4">
+                <span class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-indigo-100"><svg class="h-6 w-6" aria-hidden="true"><use href="#icon-shield"></use></svg></span>
+                <div>
                 <p class="text-sm font-semibold uppercase tracking-widest text-indigo-300">Administrator workspace</p>
-                <h1 class="mt-2 text-2xl font-bold sm:text-3xl">Platform operations</h1>
+                <h1 class="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">Platform operations</h1>
                 <p class="mt-2 max-w-2xl text-sm text-slate-300">Manage accounts, review activity, and monitor the discipleship platform.</p>
+                </div>
             </div>
-            <a href="{% url 'admin_users' %}" class="inline-flex justify-center rounded-lg bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-400">Manage users</a>
+            <a href="{% url 'admin_users' %}" class="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-indigo-950 hover:bg-indigo-50"><svg class="h-4 w-4" aria-hidden="true"><use href="#icon-users"></use></svg>Manage users</a>
         </div>
     </header>
 
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div class="rounded-xl bg-white p-4 shadow-sm"><p class="text-xs text-gray-500">Total users</p><p class="mt-1 text-2xl font-bold text-indigo-900">{{ total_users }}</p></div>
-        <div class="rounded-xl bg-white p-4 shadow-sm"><p class="text-xs text-gray-500">Administrators</p><p class="mt-1 text-2xl font-bold text-indigo-900">{{ admins }}</p></div>
-        <div class="rounded-xl bg-white p-4 shadow-sm"><p class="text-xs text-gray-500">Mentors</p><p class="mt-1 text-2xl font-bold text-indigo-900">{{ mentors }}</p></div>
-        <div class="rounded-xl bg-white p-4 shadow-sm"><p class="text-xs text-gray-500">Mentees</p><p class="mt-1 text-2xl font-bold text-indigo-900">{{ mentees }}</p></div>
-        <div class="rounded-xl bg-white p-4 shadow-sm"><p class="text-xs text-gray-500">Pods</p><p class="mt-1 text-2xl font-bold text-indigo-900">{{ total_pods }}</p></div>
-        <div class="rounded-xl bg-white p-4 shadow-sm"><p class="text-xs text-gray-500">Lessons</p><p class="mt-1 text-2xl font-bold text-indigo-900">{{ total_lessons }}</p></div>
-        <div class="rounded-xl bg-white p-4 shadow-sm"><p class="text-xs text-gray-500">Assignments</p><p class="mt-1 text-2xl font-bold text-indigo-900">{{ total_assignments }}</p></div>
-        <div class="rounded-xl bg-white p-4 shadow-sm"><p class="text-xs text-gray-500">Pending reflections</p><p class="mt-1 text-2xl font-bold text-indigo-900">{{ pending_reflections }}</p></div>
-        <div class="rounded-xl bg-white p-4 shadow-sm"><p class="text-xs text-gray-500">Pending Q&amp;A reports</p><p class="mt-1 text-2xl font-bold text-indigo-900">{{ pending_question_reports }}</p></div>
+        <div class="site-card p-4"><div class="flex items-center justify-between gap-2"><p class="text-xs text-gray-500">Total users</p><svg class="h-4 w-4 text-indigo-500" aria-hidden="true"><use href="#icon-users"></use></svg></div><p class="mt-2 text-2xl font-bold text-indigo-900">{{ total_users }}</p></div>
+        <div class="site-card p-4"><div class="flex items-center justify-between gap-2"><p class="text-xs text-gray-500">Administrators</p><svg class="h-4 w-4 text-indigo-500" aria-hidden="true"><use href="#icon-shield"></use></svg></div><p class="mt-2 text-2xl font-bold text-indigo-900">{{ admins }}</p></div>
+        <div class="site-card p-4"><div class="flex items-center justify-between gap-2"><p class="text-xs text-gray-500">Mentors</p><svg class="h-4 w-4 text-indigo-500" aria-hidden="true"><use href="#icon-user"></use></svg></div><p class="mt-2 text-2xl font-bold text-indigo-900">{{ mentors }}</p></div>
+        <div class="site-card p-4"><div class="flex items-center justify-between gap-2"><p class="text-xs text-gray-500">Mentees</p><svg class="h-4 w-4 text-indigo-500" aria-hidden="true"><use href="#icon-user-plus"></use></svg></div><p class="mt-2 text-2xl font-bold text-indigo-900">{{ mentees }}</p></div>
+        <div class="site-card p-4"><div class="flex items-center justify-between gap-2"><p class="text-xs text-gray-500">Pods</p><svg class="h-4 w-4 text-indigo-500" aria-hidden="true"><use href="#icon-users"></use></svg></div><p class="mt-2 text-2xl font-bold text-indigo-900">{{ total_pods }}</p></div>
+        <div class="site-card p-4"><div class="flex items-center justify-between gap-2"><p class="text-xs text-gray-500">Lessons</p><svg class="h-4 w-4 text-indigo-500" aria-hidden="true"><use href="#icon-book"></use></svg></div><p class="mt-2 text-2xl font-bold text-indigo-900">{{ total_lessons }}</p></div>
+        <div class="site-card p-4"><div class="flex items-center justify-between gap-2"><p class="text-xs text-gray-500">Assignments</p><svg class="h-4 w-4 text-indigo-500" aria-hidden="true"><use href="#icon-file"></use></svg></div><p class="mt-2 text-2xl font-bold text-indigo-900">{{ total_assignments }}</p></div>
+        <div class="site-card p-4"><div class="flex items-center justify-between gap-2"><p class="text-xs text-gray-500">Pending reflections</p><svg class="h-4 w-4 text-indigo-500" aria-hidden="true"><use href="#icon-heart"></use></svg></div><p class="mt-2 text-2xl font-bold text-indigo-900">{{ pending_reflections }}</p></div>
+        <div class="site-card p-4"><div class="flex items-center justify-between gap-2"><p class="text-xs text-gray-500">Pending Q&amp;A reports</p><svg class="h-4 w-4 text-indigo-500" aria-hidden="true"><use href="#icon-message"></use></svg></div><p class="mt-2 text-2xl font-bold text-indigo-900">{{ pending_question_reports }}</p></div>
     </div>
 
     <section aria-label="Administration tools">
     <h2 class="mb-3 text-lg font-bold text-slate-900">Administration tools</h2>
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <a href="{% url 'admin_users' %}" class="rounded-xl bg-white p-5 shadow-sm border border-indigo-100 hover:shadow-md transition">
+        <a href="{% url 'admin_users' %}" class="site-card site-card-hover p-5">
+            <span class="icon-chip"><svg aria-hidden="true"><use href="#icon-users"></use></svg></span>
             <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600">Users</p>
             <h2 class="mt-2 text-xl font-bold text-indigo-950">Manage access</h2>
             <p class="mt-2 text-sm text-gray-600">Admins, mentors, and mentees</p>
         </a>
-        <a href="{% url 'pod_list' %}" class="rounded-xl bg-white p-5 shadow-sm border border-indigo-100 hover:shadow-md transition">
+        <a href="{% url 'pod_list' %}" class="site-card site-card-hover p-5">
+            <span class="icon-chip"><svg aria-hidden="true"><use href="#icon-users"></use></svg></span>
             <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600">Pods</p>
             <h2 class="mt-2 text-xl font-bold text-indigo-950">Review pods</h2>
             <p class="mt-2 text-sm text-gray-600">Inspect pod rosters and leadership</p>
         </a>
-        <a href="{% url 'lesson_list' %}" class="rounded-xl bg-white p-5 shadow-sm border border-indigo-100 hover:shadow-md transition">
+        <a href="{% url 'lesson_list' %}" class="site-card site-card-hover p-5">
+            <span class="icon-chip"><svg aria-hidden="true"><use href="#icon-book"></use></svg></span>
             <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600">Curriculum</p>
             <h2 class="mt-2 text-xl font-bold text-indigo-950">Curriculum library</h2>
             <p class="mt-2 text-sm text-gray-600">Review teaching resources and lessons</p>
         </a>
-        <a href="{% url 'admin:community_contentreport_changelist' %}" class="rounded-xl bg-white p-5 shadow-sm border border-amber-100 hover:shadow-md transition">
+        <a href="{% url 'admin:community_contentreport_changelist' %}" class="site-card site-card-hover p-5">
+            <span class="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-amber-50 text-amber-700"><svg class="h-5 w-5" aria-hidden="true"><use href="#icon-message"></use></svg></span>
             <p class="text-xs font-semibold uppercase tracking-wide text-amber-700">Community Q&amp;A</p>
             <h2 class="mt-2 text-xl font-bold text-indigo-950">Review reports</h2>
             <p class="mt-2 text-sm text-gray-600">{{ pending_question_reports }} reports need review</p>
         </a>
-        <a href="{% url 'launch_apprentice' %}" class="rounded-xl bg-white p-5 shadow-sm border border-indigo-100 hover:shadow-md transition">
+        <a href="{% url 'launch_apprentice' %}" class="site-card site-card-hover p-5">
+            <span class="icon-chip"><svg aria-hidden="true"><use href="#icon-user-plus"></use></svg></span>
             <p class="text-xs font-semibold uppercase tracking-wide text-indigo-600">Follow-up</p>
             <h2 class="mt-2 text-xl font-bold text-indigo-950">Apprentice flow</h2>
             <p class="mt-2 text-sm text-gray-600">Launch apprentice pods with oversight</p>

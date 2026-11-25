@@ -7,6 +7,12 @@
         </div>
         {% if user.is_authenticated %}
         <div class="flex gap-3 text-sm">
+            {% if reply.author_id == user.pk or user.is_staff or user.is_superuser %}
+            <form method="post" action="{% url 'reply_delete' reply.id %}" data-confirm-delete data-confirm-title="Delete this reply?" data-confirm-message="This permanently removes the reply and its nested replies. This action cannot be undone." data-confirm-label="Delete reply">
+                {% csrf_token %}
+                <button type="submit" class="font-semibold text-red-700 hover:underline">Delete</button>
+            </form>
+            {% endif %}
             <details>
                 <summary class="cursor-pointer font-semibold text-indigo-700 hover:underline">Reply</summary>
                 <form method="post" action="{% url 'reply_create' question.id %}" class="mt-2 w-72 rounded-lg border bg-white p-3 shadow">

@@ -15,7 +15,7 @@
                 <ul class="mt-2 space-y-2">
                     {% for item in module.lessons.all %}
                     <li class="flex items-start gap-2 text-sm">
-                        {% if item.id in completed_ids %}<span class="text-emerald-700">&#10003;</span>{% else %}<span class="text-gray-400">&#9675;</span>{% endif %}
+                        {% if item.id in completed_ids %}<span class="text-emerald-700" aria-label="Completed">&#10003;</span>{% else %}<span class="text-gray-500" aria-label="Not completed">&#9675;</span>{% endif %}
                         <a href="{% url 'lesson_detail' item.id %}" class="{% if item.id == lesson.id %}font-bold text-indigo-900{% else %}text-indigo-700 hover:underline{% endif %}">{{ item.title }}</a>
                     </li>
                     {% endfor %}

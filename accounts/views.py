@@ -3,13 +3,16 @@ from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.views import LoginView
 from django.contrib import messages
-from .forms import CustomUserCreationForm, CustomUserChangeForm
+from django.urls import reverse
+from django.views.decorators.http import require_POST
+from .forms import CustomUserCreationForm, CustomUserChangeForm, ProfileForm
 from .models import CustomUser, Mentorship, Notification
 from accounts.utils import notify_user
 from pods.models import Pod
 from curriculum.models import Lesson
 from growth.models import Assignment, Reflection
 from community.models import ContentReport
+from config.confirmations import render_confirmation
 
 
 class RoleBasedLoginView(LoginView):
@@ -54,6 +57,15 @@ def admin_users(request):
     if request.method == 'POST':
         user = get_object_or_404(CustomUser, pk=request.POST.get('user_id'))
         action = request.POST.get('action')
+        if action == 'make_admin' and request.POST.get('confirm_action') != 'yes':
+            return render_confirmation(
+                request,
+                title=f'Grant admin access to {user.username}?',
+                message='This gives the account access to administrator tools and platform-wide user management.',
+                confirm_label='Grant admin access',
+                cancel_url=reverse('admin_users'),
+                hidden_fields={'user_id': user.pk, 'action': action},
+            )
         previous_role = user.role
         if action == 'make_admin':
             user.role = 'admin'
@@ -135,16 +147,35 @@ def profile_view(request):
 
 
 @login_required
+def edit_profile_view(request):
+    if request.user.is_staff or request.user.is_superuser:
+        return redirect('admin_dashboard')
+
+    if request.method == 'POST':
+        form = ProfileForm(request.POST, instance=request.user)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Your profile was updated.")
+            return redirect('profile')
+        messages.error(request, "Please correct the errors below.")
+    else:
+        form = ProfileForm(instance=request.user)
+
+    return render(request, 'accounts/edit_profile.html', {'form': form})
+
+
+@login_required
 def notifications_view(request):
     notifications = request.user.notifications.all()
     return render(request, 'accounts/notifications.html', {'notifications': notifications})
 
 
 @login_required
+@require_POST
 def mark_notification_read(request, notification_id):
     notification = get_object_or_404(Notification, pk=notification_id, user=request.user)
-    notification.is_read = True
-    notification.save()
-    if notification.related_url:
-        return redirect(notification.related_url)
+    if not notification.is_read:
+        notification.is_read = True
+        notification.save(update_fields=['is_read'])
+    messages.success(request, 'Notification marked as read.')
     return redirect('notifications')

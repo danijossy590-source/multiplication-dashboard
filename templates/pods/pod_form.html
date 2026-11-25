@@ -8,9 +8,10 @@
     <form method="post" class="space-y-4">
         {% csrf_token %}
         {{ form.as_p }}
-        <button type="submit" class="w-full bg-indigo-800 text-white py-2 rounded-lg font-semibold hover:bg-indigo-900 transition">
-            Save Pod
-        </button>
+        <div class="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <a href="{% url 'pod_list' %}" class="rounded-lg border border-gray-300 px-4 py-2.5 text-center text-sm font-semibold text-gray-700 hover:bg-gray-50">Cancel</a>
+            <button type="submit" class="rounded-lg bg-indigo-800 px-5 py-2.5 font-semibold text-white transition hover:bg-indigo-900">Save Pod</button>
+        </div>
     </form>
 </div>
 {% endblock %}

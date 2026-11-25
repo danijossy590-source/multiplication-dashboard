@@ -7,36 +7,54 @@
     
     <!-- Challenge Summary Card -->
     <div class="bg-indigo-50 border border-indigo-100 p-5 rounded-xl">
-        <span class="text-[11px] font-bold text-indigo-700 uppercase tracking-wider">Action Challenge</span>
+        <span class="text-xs font-bold text-indigo-700 uppercase tracking-wider">Action Challenge</span>
         <h2 class="text-xl font-bold text-indigo-950 mt-1">{{ assignment.title }}</h2>
         <p class="text-xs text-indigo-900/80 mt-2 leading-relaxed">{{ assignment.instruction }}</p>
         {% if assignment.due_date %}
-            <p class="text-[11px] font-semibold text-indigo-600 mt-3">Due Date: {{ assignment.due_date|date:"M d, Y" }}</p>
+            <p class="text-xs font-semibold text-indigo-700 mt-3">Due date: {{ assignment.due_date|date:"M d, Y" }}</p>
         {% endif %}
     </div>
 
-    <!-- Submission Form (Must include enctype="multipart/form-data" for file uploads) -->
     <form method="post" enctype="multipart/form-data" class="space-y-5">
         {% csrf_token %}
-        
+        {% if form.errors %}
+        <div class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">
+            Your reflection was not submitted. Correct the highlighted errors below.
+        </div>
+        {% endif %}
+        {% if form.non_field_errors %}
+        <div class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">
+            {{ form.non_field_errors }}
+        </div>
+        {% endif %}
         <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                Written Reflection <span class="text-red-500">*</span>
+            <label for="{{ form.written_content.id_for_label }}" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                {{ form.written_content.label }} <span class="text-red-500">*</span>
             </label>
             {{ form.written_content }}
+            {{ form.written_content.errors }}
         </div>
 
         <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Audio Recording (Optional)
+            <label for="{{ form.audio_reflection.id_for_label }}" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                {{ form.audio_reflection.label }} (Optional)
             </label>
-            <p class="text-[11px] text-slate-500 mb-2">Upload an MP3/WAV audio note sharing your reflection.</p>
+            <p class="text-xs text-slate-600 mb-2">Optional: MP3, WAV, or M4A audio, up to 10 MB.</p>
+            {% if existing_reflection.audio_reflection %}
+            <p class="mb-2 text-sm text-gray-600">
+                Current recording:
+                <a href="{{ existing_reflection.audio_reflection.url }}" target="_blank" rel="noopener noreferrer" class="font-semibold text-indigo-700 hover:underline">Listen in a new tab</a>.
+                Leave this blank to keep it.
+            </p>
+            {% endif %}
             {{ form.audio_reflection }}
+            {{ form.audio_reflection.errors }}
         </div>
 
-        <div class="pt-3 flex justify-end space-x-3 border-t">
-            <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition">
-                Submit Reflection
+        <div class="flex flex-col-reverse justify-end gap-3 border-t pt-3 sm:flex-row">
+            <a href="{% url 'multiplication_dashboard' %}" class="rounded-lg px-4 py-2.5 text-center text-sm font-semibold text-slate-700 hover:bg-slate-100">Cancel</a>
+            <button type="submit" class="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-emerald-700">
+                {% if existing_reflection %}Update reflection{% else %}Submit reflection{% endif %}
             </button>
         </div>
     </form>

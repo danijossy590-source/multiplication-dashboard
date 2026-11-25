@@ -9,7 +9,8 @@
         <a href="{% url 'admin_dashboard' %}" class="text-sm font-semibold text-indigo-700 hover:underline">← Platform dashboard</a>
     </div>
 
-    <div class="overflow-x-auto rounded-xl bg-white shadow-sm">
+    <p class="text-xs text-gray-600 sm:hidden">Swipe horizontally to see all user details and actions.</p>
+    <div role="region" aria-label="Users table" tabindex="0" class="overflow-x-auto rounded-xl bg-white shadow-sm focus-visible:outline">
         <table class="w-full min-w-[680px] text-left text-sm">
             <thead class="bg-indigo-50 text-indigo-950"><tr><th class="p-3 sm:p-4">User</th><th class="p-3 sm:p-4">Email</th><th class="p-3 sm:p-4">Role</th><th class="p-3 sm:p-4">Access</th></tr></thead>
             <tbody>
@@ -22,7 +23,7 @@
                         <form method="post" class="flex flex-wrap gap-2">
                             {% csrf_token %}
                             <input type="hidden" name="user_id" value="{{ person.pk }}">
-                            {% if not person.is_staff and not person.is_superuser %}<button name="action" value="make_admin" class="rounded bg-indigo-800 px-2 py-1 text-xs text-white hover:bg-indigo-900">Make admin</button>{% endif %}
+                            {% if not person.is_staff and not person.is_superuser %}<button name="action" value="make_admin" data-confirm-action data-confirm-title="Grant admin access to {{ person.username }}?" data-confirm-message="This gives the account access to administrator tools and platform-wide user management." data-confirm-label="Grant admin access" class="rounded bg-indigo-800 px-2 py-1 text-xs text-white hover:bg-indigo-900">Make admin</button>{% endif %}
                             {% if person.role != 'mentor' %}<button name="action" value="make_mentor" class="rounded border border-indigo-300 px-2 py-1 text-xs text-indigo-700">Make mentor</button>{% endif %}
                             {% if person.role != 'mentee' %}<button name="action" value="make_mentee" class="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700">Make mentee</button>{% endif %}
                             {% if person.is_staff or person.is_superuser %}<span class="rounded bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">Admin privileges</span>{% endif %}

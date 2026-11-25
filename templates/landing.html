@@ -3,26 +3,34 @@
 {% block title %}Camp of Gilgal | Multiply{% endblock %}
 
 {% block content %}
-<div class="mx-auto max-w-4xl space-y-8">
-    <section class="rounded-2xl bg-gradient-to-br from-indigo-950 to-indigo-800 px-6 py-12 text-center text-white shadow-lg sm:px-12">
-        <p class="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-200">Camp of Gilgal • Orientation &amp; Welcome Letter</p>
-        <h1 class="mt-4 text-3xl font-bold sm:text-5xl">Welcome to the Camp!</h1>
+<div class="mx-auto max-w-5xl space-y-6">
+    <section class="relative isolate overflow-hidden rounded-[2rem] bg-gradient-to-br from-slate-950 via-indigo-950 to-indigo-800 px-6 py-12 text-center text-white shadow-2xl sm:px-12 sm:py-16">
+        <div class="pointer-events-none absolute -right-20 -top-24 -z-10 h-72 w-72 rounded-full bg-indigo-400/20 blur-3xl"></div>
+        <div class="pointer-events-none absolute -bottom-28 -left-20 -z-10 h-72 w-72 rounded-full bg-sky-400/10 blur-3xl"></div>
+        <span class="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-indigo-100 shadow-lg shadow-indigo-950/30">
+            <svg class="h-7 w-7" aria-hidden="true"><use href="#icon-sparkles"></use></svg>
+        </span>
+        <p class="mt-6 text-xs font-bold uppercase tracking-[0.2em] text-indigo-200 sm:text-sm">Camp of Gilgal • Orientation &amp; Welcome Letter</p>
+        <h1 class="mt-4 text-3xl font-extrabold tracking-tight sm:text-5xl">Welcome to the Camp!</h1>
         <p class="mt-5 text-lg font-semibold text-indigo-100">Dear Beloved,</p>
-        <p class="mx-auto mt-3 max-w-3xl leading-7 text-indigo-50">
+        <p class="mx-auto mt-3 max-w-3xl text-sm leading-7 text-indigo-50 sm:text-base">
             It is with great joy that we welcome you to the Camp of Gilgal. We believe that you have given your life to Christ and that you are already a member of the community of Christ and the family of God. Within this vast community is a camp called the Camp of Gilgal—a platform God has purposed in Christ Jesus where believers are trained to become sound disciples of Jesus Christ and equipped to disciple others as well. Yes, in the Camp of Gilgal, the Great Commission remains our only commission.
         </p>
         <div class="mt-8 flex flex-wrap justify-center gap-3">
             {% if user.is_authenticated %}
-                <a href="{% url 'lesson_list' %}" class="rounded-lg bg-white px-6 py-3 font-semibold text-indigo-900 hover:bg-indigo-50">Enter the platform</a>
+                <a href="{% url 'lesson_list' %}" class="inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 font-bold text-indigo-950 shadow-lg shadow-indigo-950/20 hover:-translate-y-0.5 hover:bg-indigo-50"><svg class="h-5 w-5" aria-hidden="true"><use href="#icon-book"></use></svg>Enter the platform<svg class="h-4 w-4" aria-hidden="true"><use href="#icon-arrow-right"></use></svg></a>
             {% else %}
-                <a href="{% url 'signup' %}" class="rounded-lg bg-white px-6 py-3 font-semibold text-indigo-900 hover:bg-indigo-50">Join the Camp</a>
-                <a href="{% url 'login' %}" class="rounded-lg border border-indigo-200 px-6 py-3 font-semibold text-white hover:bg-white/10">Log in</a>
+                <a href="{% url 'signup' %}" class="inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 font-bold text-indigo-950 shadow-lg shadow-indigo-950/20 hover:-translate-y-0.5 hover:bg-indigo-50"><svg class="h-5 w-5" aria-hidden="true"><use href="#icon-user-plus"></use></svg>Join the Camp<svg class="h-4 w-4" aria-hidden="true"><use href="#icon-arrow-right"></use></svg></a>
+                <a href="{% url 'login' %}" class="inline-flex items-center gap-2 rounded-xl border border-indigo-200/60 px-6 py-3 font-semibold text-white hover:bg-white/10"><svg class="h-4 w-4" aria-hidden="true"><use href="#icon-login"></use></svg>Log in</a>
             {% endif %}
         </div>
     </section>
 
-    <section class="rounded-xl border border-indigo-100 bg-white p-6 shadow-sm sm:p-8">
-        <h2 class="text-2xl font-bold text-indigo-950">Why the Camp of Gilgal Exists</h2>
+    <section class="site-card p-6 sm:p-8">
+        <div class="flex items-center gap-4">
+            <span class="icon-chip"><svg aria-hidden="true"><use href="#icon-target"></use></svg></span>
+            <div><p class="eyebrow">Our purpose</p><h2 class="mt-1 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Why the Camp of Gilgal Exists</h2></div>
+        </div>
         <p class="mt-4 leading-7 text-gray-700">
             Over the years, we have identified various gaps in modern discipleship systems. Aside from seeing people who claim various forms of spiritual parenthood yet are not strongly established in the Word, we have also seen people who are very knowledgeable yet lack deep fellowship with God and practical application of that knowledge—resulting in them merely being puffed up by knowledge.
         </p>
@@ -31,34 +39,35 @@
         </p>
     </section>
 
-    <section class="rounded-xl border border-indigo-100 bg-white p-6 shadow-sm sm:p-8">
-        <h2 class="text-2xl font-bold text-indigo-950">Guidelines for Every Lesson</h2>
-        <ul class="mt-5 space-y-5">
+    <section class="site-card p-6 sm:p-8">
+        <div class="flex items-center gap-4">
+            <span class="icon-chip"><svg aria-hidden="true"><use href="#icon-book"></use></svg></span>
+            <div><p class="eyebrow">Your learning journey</p><h2 class="mt-1 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Guidelines for Every Lesson</h2></div>
+        </div>
+        <ul class="mt-6 grid gap-3 sm:grid-cols-2">
             <li>
-                <h3 class="font-bold text-gray-900">Treat Lessons as a Live Classroom</h3>
-                <p class="mt-1 leading-7 text-gray-700">Do not treat this platform as casual online reading. Whenever you come online, eliminate distractions and focus on what you are learning as if you were sitting in a physical classroom.</p>
+                <div class="flex h-full gap-3 rounded-xl bg-slate-50 p-4"><span class="mt-0.5 text-indigo-600"><svg class="h-5 w-5" aria-hidden="true"><use href="#icon-book"></use></svg></span><div><h3 class="font-bold text-slate-900">Treat Lessons as a Live Classroom</h3><p class="mt-1 text-sm leading-6 text-slate-600">Do not treat this platform as casual online reading. Whenever you come online, eliminate distractions and focus on what you are learning as if you were sitting in a physical classroom.</p></div></div>
             </li>
             <li>
-                <h3 class="font-bold text-gray-900">Pray After Every Lesson</h3>
-                <p class="mt-1 leading-7 text-gray-700">After completing each lesson, pray in tongues for at least 10 minutes, alongside any other prayer the Holy Spirit lays on your heart.</p>
+                <div class="flex h-full gap-3 rounded-xl bg-slate-50 p-4"><span class="mt-0.5 text-indigo-600"><svg class="h-5 w-5" aria-hidden="true"><use href="#icon-heart"></use></svg></span><div><h3 class="font-bold text-slate-900">Pray After Every Lesson</h3><p class="mt-1 text-sm leading-6 text-slate-600">After completing each lesson, pray in tongues for at least 10 minutes, alongside any other prayer the Holy Spirit lays on your heart.</p></div></div>
             </li>
             <li>
-                <h3 class="font-bold text-gray-900">Complete All Challenges</h3>
-                <p class="mt-1 leading-7 text-gray-700">Attempt all the challenges provided. If you fail any challenge, go back and review the lesson again until you master it.</p>
+                <div class="flex h-full gap-3 rounded-xl bg-slate-50 p-4"><span class="mt-0.5 text-indigo-600"><svg class="h-5 w-5" aria-hidden="true"><use href="#icon-check"></use></svg></span><div><h3 class="font-bold text-slate-900">Complete All Challenges</h3><p class="mt-1 text-sm leading-6 text-slate-600">Attempt all the challenges provided. If you fail any challenge, go back and review the lesson again until you master it.</p></div></div>
             </li>
             <li>
-                <h3 class="font-bold text-gray-900">Download Video &amp; PDF Resources</h3>
-                <p class="mt-1 leading-7 text-gray-700">We also provide a dedicated section for video lessons and PDFs. Download them, watch, listen, and read—they are all targeted toward your spiritual growth.</p>
+                <div class="flex h-full gap-3 rounded-xl bg-slate-50 p-4"><span class="mt-0.5 text-indigo-600"><svg class="h-5 w-5" aria-hidden="true"><use href="#icon-file"></use></svg></span><div><h3 class="font-bold text-slate-900">Download Video &amp; PDF Resources</h3><p class="mt-1 text-sm leading-6 text-slate-600">We also provide a dedicated section for video lessons and PDFs. Download them, watch, listen, and read—they are all targeted toward your spiritual growth.</p></div></div>
             </li>
             <li>
-                <h3 class="font-bold text-gray-900">Participate Actively in Your Pod</h3>
-                <p class="mt-1 leading-7 text-gray-700">You will be placed into different pods and assigned a leader. Be active in your group, ask questions, make contributions, and build godly relationships—all for the sake of mutual growth.</p>
+                <div class="flex h-full gap-3 rounded-xl bg-slate-50 p-4"><span class="mt-0.5 text-indigo-600"><svg class="h-5 w-5" aria-hidden="true"><use href="#icon-users"></use></svg></span><div><h3 class="font-bold text-slate-900">Participate Actively in Your Pod</h3><p class="mt-1 text-sm leading-6 text-slate-600">You will be placed into different pods and assigned a leader. Be active in your group, ask questions, make contributions, and build godly relationships—all for the sake of mutual growth.</p></div></div>
             </li>
         </ul>
     </section>
 
-    <section class="rounded-xl border border-emerald-100 bg-emerald-50 p-6 sm:p-8">
-        <h2 class="text-2xl font-bold text-emerald-950">Our Commitment to You</h2>
+    <section class="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-6 shadow-sm sm:p-8">
+        <div class="flex items-center gap-4">
+            <span class="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700"><svg class="h-5 w-5" aria-hidden="true"><use href="#icon-heart"></use></svg></span>
+            <div><p class="eyebrow text-emerald-700">With you in faith</p><h2 class="mt-1 text-xl font-bold tracking-tight text-emerald-950 sm:text-2xl">Our Commitment to You</h2></div>
+        </div>
         <p class="mt-4 leading-7 text-gray-700">
             We promise you that divine encounters await you as you read through every lesson. In all, here in the Camp of Gilgal, your spiritual growth is our responsibility. We love you and cannot wait to see you becoming all that God has purposed for you.
         </p>

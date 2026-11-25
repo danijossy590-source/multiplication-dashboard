@@ -3,8 +3,10 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
+from config.confirmations import render_confirmation
 from .forms import QuestionForm, ReplyForm, ReportForm
 from .models import ContentReport, Question, Reply
 
@@ -53,19 +55,18 @@ def question_detail_view(request, question_id):
     })
 
 
+@login_required
 def question_create_view(request):
     if request.method == 'POST':
         form = QuestionForm(request.POST)
         if form.is_valid():
             question = form.save(commit=False)
-            question.author = request.user if request.user.is_authenticated else None
+            question.author = request.user
             question.is_anonymous = form.cleaned_data['is_anonymous']
             if question.is_anonymous:
                 question.display_name = ''
-            elif request.user.is_authenticated:
-                question.display_name = request.user.get_username()
             else:
-                question.display_name = form.cleaned_data['display_name'].strip() or 'Guest'
+                question.display_name = request.user.get_username()
             question.save()
             messages.success(request, 'Your question has been posted.')
             return redirect('question_detail', question_id=question.pk)
@@ -119,6 +120,57 @@ def reply_report_view(request, reply_id):
         question__is_hidden=False,
     )
     return _create_report(request, reply=reply)
+
+
+@login_required
+@require_POST
+def question_delete_view(request, question_id):
+    question = get_object_or_404(Question, pk=question_id)
+    if question.author_id != request.user.pk and not (
+        request.user.is_staff or request.user.is_superuser
+    ):
+        messages.error(request, 'You can only delete your own question.')
+        return redirect('question_detail', question_id=question.pk)
+
+    if request.POST.get('confirm_action') != 'yes':
+        return render_confirmation(
+            request,
+            title=f'Delete "{question.title}"?',
+            message='This permanently removes the question and all of its replies. This action cannot be undone.',
+            confirm_label='Delete question',
+            cancel_url=reverse('question_detail', args=[question.pk]),
+        )
+
+    question.delete()
+    messages.success(request, 'Your question was deleted.')
+    return redirect('question_list')
+
+
+@login_required
+@require_POST
+def reply_delete_view(request, reply_id):
+    reply = get_object_or_404(
+        Reply.objects.select_related('question'),
+        pk=reply_id,
+    )
+    if reply.author_id != request.user.pk and not (
+        request.user.is_staff or request.user.is_superuser
+    ):
+        messages.error(request, 'You can only delete your own reply.')
+        return redirect('question_detail', question_id=reply.question_id)
+
+    if request.POST.get('confirm_action') != 'yes':
+        return render_confirmation(
+            request,
+            title='Delete this reply?',
+            message='This permanently removes the reply and any replies nested beneath it. This action cannot be undone.',
+            confirm_label='Delete reply',
+            cancel_url=reverse('question_detail', args=[reply.question_id]),
+        )
+
+    reply.delete()
+    messages.success(request, 'Your reply was deleted.')
+    return redirect('question_detail', question_id=reply.question_id)
 
 
 def _create_report(request, question=None, reply=None):

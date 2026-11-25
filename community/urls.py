@@ -8,4 +8,6 @@ urlpatterns = [
     path('<int:question_id>/reply/', views.reply_create_view, name='reply_create'),
     path('<int:question_id>/report/', views.question_report_view, name='question_report'),
     path('replies/<int:reply_id>/report/', views.reply_report_view, name='reply_report'),
+    path('<int:question_id>/delete/', views.question_delete_view, name='question_delete'),
+    path('replies/<int:reply_id>/delete/', views.reply_delete_view, name='reply_delete'),
 ]

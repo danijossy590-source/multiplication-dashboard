@@ -297,8 +297,17 @@ class LessonManagementTests(TestCase):
     def test_creator_can_delete_uploaded_lesson(self):
         self.client.force_login(self.creator)
 
+        url = reverse('lesson_delete', args=[self.lesson.pk])
+        confirmation = self.client.post(
+            url,
+            secure=True,
+        )
+        self.assertEqual(confirmation.status_code, 200)
+        self.assertTrue(Lesson.objects.filter(pk=self.lesson.pk).exists())
+
         response = self.client.post(
-            reverse('lesson_delete', args=[self.lesson.pk]),
+            url,
+            {'confirm_action': 'yes'},
             secure=True,
         )
 
@@ -366,6 +375,7 @@ class LessonManagementTests(TestCase):
 
         self.client.post(
             reverse('lesson_delete', args=[self.lesson.pk]),
+            {'confirm_action': 'yes'},
             secure=True,
         )
         self.assertTrue(audio_path.exists())
@@ -373,6 +383,7 @@ class LessonManagementTests(TestCase):
 
         self.client.post(
             reverse('lesson_delete', args=[shared_lesson.pk]),
+            {'confirm_action': 'yes'},
             secure=True,
         )
         self.assertFalse(audio_path.exists())
@@ -1036,3 +1047,24 @@ class CourseLearningFlowTests(TestCase):
             fetch_redirect_response=False,
         )
         self.assertTrue(self.quiz.questions.filter(prompt='What is the first lesson?').exists())
+
+    def test_quiz_question_delete_requires_server_confirmation(self):
+        self.client.force_login(self.leader)
+        url = reverse('quiz_manage', args=[self.module.pk])
+
+        confirmation = self.client.post(
+            url,
+            {'delete_question': self.question.pk},
+            secure=True,
+        )
+        self.assertEqual(confirmation.status_code, 200)
+        self.assertContains(confirmation, 'Remove this quiz question?')
+        self.assertTrue(QuizQuestion.objects.filter(pk=self.question.pk).exists())
+
+        response = self.client.post(
+            url,
+            {'delete_question': self.question.pk, 'confirm_action': 'yes'},
+            secure=True,
+        )
+        self.assertRedirects(response, url, fetch_redirect_response=False)
+        self.assertFalse(QuizQuestion.objects.filter(pk=self.question.pk).exists())

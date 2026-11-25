@@ -15,6 +15,7 @@ from django.utils.text import slugify
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 from accounts.utils import notify_user
+from config.confirmations import render_confirmation
 from curriculum.models import Lesson
 from .books import PodBookDocumentError, prepare_book_document
 from .models import (
@@ -667,6 +668,15 @@ def pod_delete_view(request, pod_id):
         return HttpResponseForbidden('Only admins can delete Pods.')
 
     pod = get_object_or_404(Pod, pk=pod_id)
+    if request.POST.get('confirm_action') != 'yes':
+        return render_confirmation(
+            request,
+            title=f'Delete "{pod.name}"?',
+            message='This permanently removes the Pod, its members, books, reviews, courses, lessons, chat, meetings, and related progress. This action cannot be undone.',
+            confirm_label='Delete Pod permanently',
+            cancel_url=reverse('pod_detail', args=[pod.pk]),
+        )
+
     files = {}
     pod_lessons = Lesson.objects.filter(
         Q(pod=pod) | Q(module__course__pod=pod)

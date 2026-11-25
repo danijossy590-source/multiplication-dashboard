@@ -7,9 +7,11 @@ from django.core.files.base import ContentFile
 from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponseForbidden, JsonResponse
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils.text import slugify
+from config.confirmations import render_confirmation
 
 from .documents import DocumentConversionError, convert_word_document
 from .ai import LessonAIError, generate_course_plan, generate_lesson_suggestions
@@ -527,6 +529,15 @@ def lesson_delete_view(request, lesson_id):
     if not _can_manage_lesson(request.user, lesson):
         return HttpResponseForbidden('You cannot delete this lesson.')
 
+    if request.POST.get('confirm_action') != 'yes':
+        return render_confirmation(
+            request,
+            title=f'Delete "{lesson.title}"?',
+            message='This permanently removes the lesson and its completion records. This action cannot be undone.',
+            confirm_label='Delete lesson',
+            cancel_url=reverse('lesson_detail', args=[lesson.pk]),
+        )
+
     lesson_title = lesson.title
     files = _lesson_files(lesson)
     lesson.delete()
@@ -652,6 +663,15 @@ def quiz_manage_view(request, module_id):
             return redirect('quiz_manage', module_id=module.pk)
     elif request.method == 'POST' and 'delete_question' in request.POST:
         question = get_object_or_404(QuizQuestion, pk=request.POST.get('delete_question'), quiz=quiz)
+        if request.POST.get('confirm_action') != 'yes':
+            return render_confirmation(
+                request,
+                title='Remove this quiz question?',
+                message='This permanently removes the question and its answer choices from the module quiz.',
+                confirm_label='Remove question',
+                cancel_url=reverse('quiz_manage', args=[module.pk]),
+                hidden_fields={'delete_question': question.pk},
+            )
         question.delete()
         messages.success(request, 'Question removed.')
         return redirect('quiz_manage', module_id=module.pk)

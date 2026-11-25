@@ -3,7 +3,8 @@ from io import StringIO
 from unittest.mock import patch
 
 from django.core.management import call_command
-from django.test import TestCase
+from django.core import mail
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from accounts.models import CustomUser
@@ -42,6 +43,125 @@ class SignupRoleTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, 'name="role"')
+
+
+@override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+class PasswordResetTests(TestCase):
+    def setUp(self):
+        self.user = CustomUser.objects.create_user(
+            username='reset-user',
+            email='reset-user@example.com',
+            password='Old-password-1',
+        )
+
+    def test_password_reset_changes_password_with_valid_email_link(self):
+        response = self.client.post(
+            reverse('password_reset'),
+            {'email': self.user.email},
+            secure=True,
+        )
+
+        self.assertRedirects(
+            response,
+            reverse('password_reset_done'),
+            fetch_redirect_response=False,
+        )
+        self.assertEqual(len(mail.outbox), 1)
+
+        reset_url = next(
+            line for line in mail.outbox[0].body.splitlines()
+            if '/accounts/password-reset/' in line
+        )
+        response = self.client.get(reset_url, secure=True, follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Choose a new password')
+
+        confirm_path = response.request['PATH_INFO']
+        response = self.client.post(
+            confirm_path,
+            {
+                'new_password1': 'New-strong-password-123!',
+                'new_password2': 'New-strong-password-123!',
+            },
+            secure=True,
+        )
+
+        self.assertRedirects(
+            response,
+            reverse('password_reset_complete'),
+            fetch_redirect_response=False,
+        )
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password('New-strong-password-123!'))
+
+    def test_password_reset_response_does_not_disclose_unknown_email(self):
+        response = self.client.post(
+            reverse('password_reset'),
+            {'email': 'unknown@example.com'},
+            secure=True,
+        )
+
+        self.assertRedirects(
+            response,
+            reverse('password_reset_done'),
+            fetch_redirect_response=False,
+        )
+        self.assertEqual(len(mail.outbox), 0)
+
+
+class ProfileEditTests(TestCase):
+    def setUp(self):
+        self.user = CustomUser.objects.create_user(
+            username="profile-user",
+            email="old@example.com",
+            password="User-password-1",
+            first_name="Old",
+            last_name="Name",
+        )
+        self.client.force_login(self.user)
+
+    def test_profile_page_links_to_edit_profile(self):
+        response = self.client.get(reverse("profile"), secure=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("edit_profile"))
+
+    def test_edit_profile_updates_allowed_fields(self):
+        response = self.client.post(
+            reverse("edit_profile"),
+            {
+                "first_name": "New",
+                "last_name": "Person",
+                "email": "new@example.com",
+                "phone_number": "123456789",
+                "bio": "Updated bio",
+            },
+            secure=True,
+        )
+
+        self.assertRedirects(response, reverse("profile"), fetch_redirect_response=False)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.first_name, "New")
+        self.assertEqual(self.user.last_name, "Person")
+        self.assertEqual(self.user.email, "new@example.com")
+        self.assertEqual(self.user.phone_number, "123456789")
+        self.assertEqual(self.user.bio, "Updated bio")
+
+    def test_edit_profile_rejects_invalid_email(self):
+        response = self.client.post(
+            reverse("edit_profile"),
+            {
+                "first_name": "New",
+                "last_name": "Person",
+                "email": "not-an-email",
+                "phone_number": "",
+                "bio": "",
+            },
+            secure=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Enter a valid email address")
 
 
 class AdminRolePreservationTests(TestCase):
@@ -97,6 +217,36 @@ class AdminRolePreservationTests(TestCase):
         self.assertEqual(user.role, "mentor")
         self.assertFalse(user.is_staff)
         self.assertFalse(user.is_superuser)
+
+    def test_granting_admin_access_requires_confirmation(self):
+        user = CustomUser.objects.create_user(
+            username="new-admin",
+            password="User-password-1",
+        )
+
+        confirmation = self.client.post(
+            reverse("admin_users"),
+            {"user_id": user.pk, "action": "make_admin"},
+            secure=True,
+        )
+        self.assertEqual(confirmation.status_code, 200)
+        self.assertContains(confirmation, "Grant admin access")
+        user.refresh_from_db()
+        self.assertFalse(user.is_staff)
+
+        response = self.client.post(
+            reverse("admin_users"),
+            {
+                "user_id": user.pk,
+                "action": "make_admin",
+                "confirm_action": "yes",
+            },
+            secure=True,
+        )
+        self.assertRedirects(response, reverse("admin_users"), fetch_redirect_response=False)
+        user.refresh_from_db()
+        self.assertTrue(user.is_staff)
+        self.assertTrue(user.is_superuser)
 
     def test_admin_portal_uses_admin_workspace_not_member_actions(self):
         response = self.client.get(reverse("admin_dashboard"), secure=True)

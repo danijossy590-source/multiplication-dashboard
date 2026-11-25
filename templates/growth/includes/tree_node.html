@@ -6,14 +6,14 @@
             </div>
             <div>
                 <h4 class="text-xs font-bold text-slate-900">{{ node.name }}</h4>
-                <p class="text-[11px] text-slate-500">{{ node.email }}</p>
+                <p class="text-xs text-slate-600">{{ node.email }}</p>
             </div>
         </div>
         <div class="flex items-center space-x-2">
             {% if node.is_leader %}
-                <span class="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-200">Pod Leader</span>
+                <span class="bg-amber-100 text-amber-900 text-xs font-bold px-2 py-0.5 rounded-full border border-amber-200">Pod Leader</span>
             {% endif %}
-            <span class="bg-indigo-50 text-indigo-700 text-[10px] font-semibold px-2 py-0.5 rounded-full">
+            <span class="bg-indigo-50 text-indigo-800 text-xs font-semibold px-2 py-0.5 rounded-full">
                 {{ node.completed_challenges }} Challenges Done
             </span>
         </div>

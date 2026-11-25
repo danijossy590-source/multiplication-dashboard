@@ -550,6 +550,7 @@ class PodPageTests(TestCase):
         )
         delete_response = self.client.post(
             reverse('pod_delete', args=[self.pod.pk]),
+            {'confirm_action': 'yes'},
             secure=True,
         )
 

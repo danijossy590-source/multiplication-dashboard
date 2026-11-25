@@ -10,7 +10,7 @@
             <div class="min-w-0">
                 <h1 class="break-words text-2xl font-bold text-gray-900 sm:text-3xl">{{ pod.name }}</h1>
                 <p class="text-gray-600 mt-1">{{ pod.description|default:"No description provided." }}</p>
-                <p class="text-xs text-gray-400 mt-2">Created on {{ pod.created_at|date:"M d, Y" }}</p>
+                <p class="text-xs text-gray-500 mt-2">Created on {{ pod.created_at|date:"M d, Y" }}</p>
             </div>
             <div class="shrink-0">
                 {% if is_leader %}
@@ -26,6 +26,18 @@
                 {% endif %}
             </div>
         </div>
+    </div>
+
+    <div class="sticky top-2 z-20 flex flex-col gap-3 rounded-xl border border-gray-200 bg-white/95 p-3 shadow-sm backdrop-blur sm:flex-row sm:items-center">
+        <a href="{% url 'pod_list' %}" class="shrink-0 text-sm font-semibold text-indigo-700 hover:underline">&larr; Back to Pods</a>
+        <nav aria-label="Pod sections" class="flex gap-2 overflow-x-auto text-sm">
+            <a href="#book-club" class="whitespace-nowrap rounded-lg bg-emerald-50 px-3 py-2 font-semibold text-emerald-800 hover:bg-emerald-100">Reading</a>
+            <a href="#pod-members" class="whitespace-nowrap rounded-lg bg-indigo-50 px-3 py-2 font-semibold text-indigo-800 hover:bg-indigo-100">Members</a>
+            {% if can_manage_members or is_admin %}<a href="#pod-management" class="whitespace-nowrap rounded-lg bg-indigo-50 px-3 py-2 font-semibold text-indigo-800 hover:bg-indigo-100">Manage</a>{% endif %}
+            <a href="#pod-chat" class="whitespace-nowrap rounded-lg bg-indigo-50 px-3 py-2 font-semibold text-indigo-800 hover:bg-indigo-100">Chat</a>
+            <a href="#pod-meetings" class="whitespace-nowrap rounded-lg bg-indigo-50 px-3 py-2 font-semibold text-indigo-800 hover:bg-indigo-100">Meetings</a>
+            {% if is_admin %}<a href="#pod-delete" class="whitespace-nowrap rounded-lg bg-red-50 px-3 py-2 font-semibold text-red-800 hover:bg-red-100">Delete Pod</a>{% endif %}
+        </nav>
     </div>
 
     {% if can_manage_join_code %}
@@ -50,7 +62,7 @@
     </section>
     {% endif %}
 
-    <section class="rounded-lg border border-emerald-100 bg-white p-4 shadow-sm sm:p-5">
+    <section id="book-club" class="scroll-mt-28 rounded-lg border border-emerald-100 bg-white p-4 shadow-sm sm:p-5">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div class="min-w-0">
                 <h2 class="text-xl font-bold text-emerald-950">Pod Book Club</h2>
@@ -83,18 +95,18 @@
                 {% csrf_token %}
                 <input type="hidden" name="assign_book" value="1">
                 <div class="sm:col-span-2">
-                    <label class="mb-1 block text-sm font-semibold text-gray-700">Book title</label>
+                    <label for="{{ book_form.title.id_for_label }}" class="mb-1 block text-sm font-semibold text-gray-700">Book title</label>
                     {{ book_form.title }}
                     {{ book_form.title.errors }}
                 </div>
                 <div>
-                    <label class="mb-1 block text-sm font-semibold text-gray-700">Book file</label>
+                    <label for="{{ book_form.document.id_for_label }}" class="mb-1 block text-sm font-semibold text-gray-700">Book file</label>
                     {{ book_form.document }}
                     <p class="mt-1 text-xs text-gray-500">{{ book_form.document.help_text }}</p>
                     {{ book_form.document.errors }}
                 </div>
                 <div>
-                    <label class="mb-1 block text-sm font-semibold text-gray-700">{{ book_form.duration_weeks.label }}</label>
+                    <label for="{{ book_form.duration_weeks.id_for_label }}" class="mb-1 block text-sm font-semibold text-gray-700">{{ book_form.duration_weeks.label }}</label>
                     {{ book_form.duration_weeks }}
                     {{ book_form.duration_weeks.errors }}
                 </div>
@@ -117,7 +129,7 @@
                     </div>
                     <a href="{% url 'pod_book_read' pod.id book.id %}" class="text-sm font-semibold text-emerald-800 hover:underline">Open reader &rarr;</a>
                 </div>
-                <div class="mt-2 h-2 overflow-hidden rounded-full bg-gray-200">
+                <div class="mt-2 h-2 overflow-hidden rounded-full bg-gray-200" role="progressbar" aria-valuenow="{{ book_completion_percent }}" aria-valuemin="0" aria-valuemax="100" aria-label="Your reading progress">
                     <div class="h-full rounded-full bg-emerald-600" style="width: {{ book_completion_percent }}%"></div>
                 </div>
                 <p class="mt-4 text-sm text-gray-600">Read the section assigned for each week, mark it complete, and share a weekly review.</p>
@@ -194,12 +206,12 @@
                 {% csrf_token %}
                 <input type="hidden" name="submit_book_review" value="1">
                 <div>
-                    <label class="mb-1 block text-sm font-semibold text-gray-700">{{ book_review_form.week_number.label }}</label>
+                    <label for="{{ book_review_form.week_number.id_for_label }}" class="mb-1 block text-sm font-semibold text-gray-700">{{ book_review_form.week_number.label }}</label>
                     {{ book_review_form.week_number }}
                     {{ book_review_form.week_number.errors }}
                 </div>
                 <div>
-                    <label class="mb-1 block text-sm font-semibold text-gray-700">Your review</label>
+                    <label for="{{ book_review_form.review.id_for_label }}" class="mb-1 block text-sm font-semibold text-gray-700">Your review</label>
                     {{ book_review_form.review }}
                     {{ book_review_form.review.errors }}
                 </div>
@@ -216,7 +228,7 @@
 
     <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
         <!-- Members List -->
-        <div class="min-w-0 rounded-lg bg-white p-4 shadow-md sm:p-6 md:col-span-2">
+    <div id="pod-members" class="min-w-0 scroll-mt-28 rounded-lg bg-white p-4 shadow-md sm:p-6 md:col-span-2">
             <h2 class="text-xl font-bold text-gray-800 mb-4">Pod Members ({{ members|length }})</h2>
             <ul class="divide-y divide-gray-100">
                 {% for m in members %}
@@ -248,7 +260,7 @@
 
         <!-- Pod Management -->
         {% if can_manage_members or is_admin %}
-        <div class="rounded-lg bg-white p-4 shadow-md sm:p-6 space-y-4">
+        <div id="pod-management" class="scroll-mt-28 rounded-lg bg-white p-4 shadow-md sm:p-6 space-y-4">
             {% if can_manage_members %}
             <h3 class="text-lg font-bold text-indigo-900 border-b pb-2">Add Pod Member</h3>
             <form method="post" class="space-y-3">
@@ -276,7 +288,7 @@
     </div>
 
     {% if is_admin %}
-    <section class="rounded-lg border border-red-200 bg-red-50 p-4 sm:p-5">
+    <section id="pod-delete" class="scroll-mt-28 rounded-lg border border-red-200 bg-red-50 p-4 sm:p-5">
         <h2 class="font-bold text-red-900">Delete this Pod</h2>
         <p class="mt-1 text-sm text-red-800">This permanently deletes the Pod, its members, chat, meetings, book assignments, courses, lessons, and related progress. This cannot be undone.</p>
         <form method="post" action="{% url 'pod_delete' pod.id %}" class="mt-3" data-confirm-delete data-confirm-title="Delete {{ pod.name }}?" data-confirm-message="This permanently removes the Pod, its members, books, reviews, courses, lessons, and related progress. This action cannot be undone." data-confirm-label="Delete Pod permanently">
@@ -287,7 +299,7 @@
     {% endif %}
 
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <section class="rounded-lg bg-white p-4 shadow-md sm:p-6 lg:col-span-2">
+        <section id="pod-chat" class="scroll-mt-28 rounded-lg bg-white p-4 shadow-md sm:p-6 lg:col-span-2">
             <div class="mb-4 flex items-center justify-between border-b pb-3">
                 <div>
                     <h2 class="text-xl font-bold text-gray-800">Pod Chat</h2>
@@ -322,7 +334,7 @@
         </section>
 
         <aside class="space-y-6">
-            <section class="rounded-lg bg-white p-4 shadow-md sm:p-6">
+            <section id="pod-meetings" class="scroll-mt-28 rounded-lg bg-white p-4 shadow-md sm:p-6">
                 <h2 class="mb-4 text-xl font-bold text-gray-800">Pod Meetings</h2>
                 <div class="space-y-4">
                     {% for meeting in meetings %}

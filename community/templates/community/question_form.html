@@ -27,20 +27,11 @@
                 <label for="{{ form.body.id_for_label }}" class="font-semibold text-gray-800">{{ form.body.label }}</label>
                 {{ form.body }}
             </div>
-            {% if not user.is_authenticated %}
-            <div>
-                <label for="{{ form.display_name.id_for_label }}" class="font-semibold text-gray-800">{{ form.display_name.label }}</label>
-                {{ form.display_name }}
-                <p class="mt-1 text-xs text-gray-500">Optional. Leave blank to use “Guest”. This name will be public unless you post anonymously.</p>
-            </div>
-            {% endif %}
             <div class="flex items-start gap-2">
                 {{ form.is_anonymous }}
                 <label for="{{ form.is_anonymous.id_for_label }}" class="text-sm font-medium text-gray-700">{{ form.is_anonymous.label }}</label>
             </div>
-            {% if user.is_authenticated %}
             <p class="text-xs text-gray-500">Your account is retained privately for moderation, even when your public name is hidden.</p>
-            {% endif %}
             <button type="submit" class="w-full rounded-lg bg-indigo-800 px-5 py-3 font-semibold text-white hover:bg-indigo-900">Post question</button>
         </form>
     </section>
