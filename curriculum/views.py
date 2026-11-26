@@ -78,7 +78,7 @@ def lesson_list_view(request):
         all_lessons = Lesson.objects.all()
     else:
         all_lessons = Lesson.objects.filter(
-            Q(is_master_template=True, module__isnull=True)
+            Q(is_master_template=True)
             | Q(pod_id__in=all_user_pod_ids)
             | Q(created_by=request.user, module__isnull=True)
             | Q(module__course_id__in=visible_course_ids)
@@ -405,7 +405,10 @@ def lesson_detail_view(request, lesson_id):
     )
     course = lesson.module.course if lesson.module_id else None
     if course and not _can_view_course(request.user, course):
-        return HttpResponseForbidden('You do not have access to this lesson.')
+        if lesson.is_master_template:
+            course = None
+        else:
+            return HttpResponseForbidden('You do not have access to this lesson.')
     
     # Check if the current user is a leader of at least one pod
     user_is_a_leader = request.user.leading_pods.exists()

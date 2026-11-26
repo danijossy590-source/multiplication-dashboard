@@ -89,6 +89,46 @@ class CurriculumVisibilityTests(TestCase):
         self.assertEqual(course_response.status_code, 200)
         self.assertContains(course_response, lesson.title)
 
+    def test_master_template_inside_private_course_is_available_as_standalone_lesson(self):
+        private_course = Course.objects.create(
+            title='Private Pod Course',
+            pod=self.pod,
+            created_by=self.leader,
+            is_published=False,
+        )
+        module = Module.objects.create(course=private_course, title='Private module')
+        lesson = Lesson.objects.create(
+            title='Shared lesson from private course',
+            content='This master lesson can be read on its own.',
+            module=module,
+            pod=self.pod,
+            created_by=self.leader,
+            is_master_template=True,
+        )
+        outsider = CustomUser.objects.create_user(
+            username='curriculum-outsider',
+            password='test-password',
+        )
+        self.client.force_login(outsider)
+
+        library_response = self.client.get(reverse('lesson_list'), secure=True)
+        detail_response = self.client.get(
+            reverse('lesson_detail', args=[lesson.pk]),
+            secure=True,
+        )
+        course_response = self.client.get(
+            reverse('course_detail', args=[private_course.pk]),
+            secure=True,
+        )
+
+        self.assertContains(library_response, lesson.title)
+        self.assertNotContains(library_response, private_course.title)
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertContains(detail_response, lesson.title)
+        self.assertContains(detail_response, 'Master Curriculum')
+        self.assertNotContains(detail_response, private_course.title)
+        self.assertEqual(course_response.status_code, 403)
+
     def test_admin_curriculum_lists_every_lesson_counted_on_dashboard(self):
         admin = CustomUser.objects.create_user(
             username='curriculum-admin',
