@@ -1,19 +1,22 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from .models import CustomUser, Mentorship, Notification
-from .forms import CustomUserCreationForm, CustomUserChangeForm
+from .forms import AdminUserCreationForm, CustomUserChangeForm
 
 @admin.register(CustomUser)
 class CustomUserAdmin(UserAdmin):
-    add_form = CustomUserCreationForm
+    add_form = AdminUserCreationForm
     form = CustomUserChangeForm
     model = CustomUser
-    list_display = ['username', 'email', 'role', 'phone_number', 'is_staff']
+    list_display = ['username', 'email', 'role', 'phone_number', 'is_staff', 'is_superuser']
     fieldsets = UserAdmin.fieldsets + (
         ('Extra Fields', {'fields': ('role', 'bio', 'phone_number')}),
     )
-    add_fieldsets = UserAdmin.add_fieldsets + (
-        ('Extra Fields', {'fields': ('role', 'bio', 'phone_number')}),
+    add_fieldsets = (
+        (None, {
+            'classes': ('wide',),
+            'fields': ('username', 'email', 'role', 'phone_number', 'bio', 'password1', 'password2'),
+        }),
     )
 
 @admin.register(Mentorship)

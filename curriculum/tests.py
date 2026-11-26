@@ -212,6 +212,7 @@ class CurriculumVisibilityTests(TestCase):
         self.assertEqual(manual_response.status_code, 403)
         self.assertEqual(ai_response.status_code, 403)
 
+
     def test_leader_can_upload_word_lesson_and_publish_converted_pdf(self):
         self.client.force_login(self.leader)
         media_directory = tempfile.TemporaryDirectory()
@@ -300,6 +301,92 @@ class CurriculumVisibilityTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 403)
+
+
+class DjangoAdminCurriculumIntegrationTests(TestCase):
+    def test_django_admin_course_and_lesson_are_visible_in_frontend(self):
+        admin_user = CustomUser.objects.create_user(
+            username='backend-curriculum-admin',
+            password='test-password',
+            role='admin',
+        )
+        learner = CustomUser.objects.create_user(
+            username='backend-curriculum-learner',
+            password='test-password',
+        )
+        self.client.force_login(admin_user)
+
+        course_response = self.client.post(
+            reverse('admin:curriculum_course_add'),
+            {
+                'title': 'Backend published course',
+                'description': 'Created in Django admin.',
+                'pod': '',
+                'is_published': 'on',
+                'order': '0',
+                '_save': 'Save',
+                'modules-TOTAL_FORMS': '0',
+                'modules-INITIAL_FORMS': '0',
+                'modules-MIN_NUM_FORMS': '0',
+                'modules-MAX_NUM_FORMS': '1000',
+            },
+            secure=True,
+        )
+        self.assertEqual(
+            course_response.status_code,
+            302,
+            course_response.context["adminform"].form.errors
+            if course_response.status_code == 200 else "",
+        )
+        course = Course.objects.get(title='Backend published course')
+        self.assertEqual(course.created_by, admin_user)
+
+        module_response = self.client.post(
+            reverse('admin:curriculum_module_add'),
+            {
+                'course': str(course.pk),
+                'title': 'Backend course module',
+                'description': '',
+                'learning_objectives': '',
+                'learning_steps': '',
+                'order': '0',
+                '_save': 'Save',
+            },
+            secure=True,
+        )
+        self.assertEqual(module_response.status_code, 302)
+        module = Module.objects.get(course=course)
+
+        lesson_response = self.client.post(
+            reverse('admin:curriculum_lesson_add'),
+            {
+                'title': 'Backend uploaded lesson',
+                'description': 'Created in Django admin.',
+                'content': 'This lesson is attached to the backend course.',
+                'discussion_questions': '',
+                'module': str(module.pk),
+                'order': '0',
+                'audio_file': '',
+                'pdf_resource': '',
+                'pod': '',
+                'is_master_template': '',
+                '_save': 'Save',
+            },
+            secure=True,
+        )
+        self.assertEqual(lesson_response.status_code, 302)
+        lesson = Lesson.objects.get(title='Backend uploaded lesson')
+        self.assertEqual(lesson.created_by, admin_user)
+
+        self.client.force_login(learner)
+        library_response = self.client.get(reverse('lesson_list'), secure=True)
+        course_response = self.client.get(
+            reverse('course_detail', args=[course.pk]),
+            secure=True,
+        )
+        self.assertContains(library_response, course.title)
+        self.assertContains(library_response, lesson.title)
+        self.assertContains(course_response, lesson.title)
 
 
 class LessonManagementTests(TestCase):

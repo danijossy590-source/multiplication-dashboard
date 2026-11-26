@@ -21,10 +21,23 @@ class CustomUserCreationForm(UserCreationForm):
         return user
 
 
+class AdminUserCreationForm(UserCreationForm):
+    class Meta(UserCreationForm.Meta):
+        model = CustomUser
+        fields = ('username', 'email', 'role', 'phone_number', 'bio')
+
+
 class CustomUserChangeForm(UserChangeForm):
     class Meta:
         model = CustomUser
-        fields = ('username', 'email', 'role', 'phone_number', 'bio')
+        fields = '__all__'
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data.get('role') != 'admin':
+            cleaned_data['is_staff'] = False
+            cleaned_data['is_superuser'] = False
+        return cleaned_data
 
 
 class ProfileForm(forms.ModelForm):

@@ -12,6 +12,25 @@ class CustomUser(AbstractUser):
     bio = models.TextField(blank=True, null=True)
     phone_number = models.CharField(max_length=15, blank=True, null=True)
 
+    def save(self, *args, **kwargs):
+        admin_values = {
+            'role': 'admin',
+            'is_staff': True,
+            'is_superuser': True,
+        }
+        synchronized_fields = set()
+        if self.role == 'admin' or self.is_staff or self.is_superuser:
+            for field, value in admin_values.items():
+                if getattr(self, field) != value:
+                    setattr(self, field, value)
+                    synchronized_fields.add(field)
+
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None and synchronized_fields:
+            kwargs['update_fields'] = set(update_fields) | synchronized_fields
+
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return self.username
 

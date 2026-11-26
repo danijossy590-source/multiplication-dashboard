@@ -182,7 +182,7 @@ class AdminRolePreservationTests(TestCase):
         )
         self.client.force_login(self.admin)
 
-    def test_changing_admin_role_to_mentor_keeps_admin_access(self):
+    def test_changing_admin_role_to_mentor_revokes_admin_access(self):
         response = self.client.post(
             reverse("admin_users"),
             {"user_id": self.admin.pk, "action": "make_mentor"},
@@ -192,10 +192,11 @@ class AdminRolePreservationTests(TestCase):
         self.assertRedirects(response, reverse("admin_users"), fetch_redirect_response=False)
         self.admin.refresh_from_db()
         self.assertEqual(self.admin.role, "mentor")
-        self.assertTrue(self.admin.is_staff)
-        self.assertTrue(self.admin.is_superuser)
+        self.assertFalse(self.admin.is_staff)
+        self.assertFalse(self.admin.is_superuser)
+        self.assertEqual(self.client.get(reverse("admin_dashboard"), secure=True).status_code, 302)
 
-    def test_changing_admin_role_to_mentee_keeps_admin_access(self):
+    def test_changing_admin_role_to_mentee_revokes_admin_access(self):
         self.client.post(
             reverse("admin_users"),
             {"user_id": self.admin.pk, "action": "make_mentee"},
@@ -204,8 +205,9 @@ class AdminRolePreservationTests(TestCase):
 
         self.admin.refresh_from_db()
         self.assertEqual(self.admin.role, "mentee")
-        self.assertTrue(self.admin.is_staff)
-        self.assertTrue(self.admin.is_superuser)
+        self.assertFalse(self.admin.is_staff)
+        self.assertFalse(self.admin.is_superuser)
+        self.assertEqual(self.client.get(reverse("admin_dashboard"), secure=True).status_code, 302)
 
     def test_changing_regular_user_role_does_not_grant_admin_access(self):
         user = CustomUser.objects.create_user(
@@ -262,6 +264,7 @@ class AdminRolePreservationTests(TestCase):
         self.assertContains(response, "Platform operations")
         self.assertNotContains(response, "Upload New Lesson")
         self.assertContains(response, reverse("admin_users"))
+        self.assertContains(response, reverse("admin:index"))
         self.assertContains(response, reverse("multiplication_dashboard"))
         self.assertContains(response, reverse("pod_list"))
         self.assertContains(response, reverse("lesson_list"))
@@ -271,6 +274,68 @@ class AdminRolePreservationTests(TestCase):
         self.assertEqual(users_response.status_code, 200)
         self.assertContains(users_response, "Manage users")
         self.assertContains(users_response, reverse("admin_dashboard"))
+
+
+class DjangoAdminIntegrationTests(TestCase):
+    def test_superuser_account_has_frontend_admin_rights_and_shared_content_admin(self):
+        admin_user = CustomUser.objects.create_user(
+            username="django-superuser",
+            password="Django-admin-password-1",
+            role="mentee",
+            is_superuser=True,
+        )
+
+        self.assertEqual(admin_user.role, "admin")
+        self.assertTrue(admin_user.is_staff)
+        self.assertTrue(admin_user.is_superuser)
+
+        self.client.force_login(admin_user)
+        portal_response = self.client.get(reverse("admin_dashboard"), secure=True)
+        django_admin_response = self.client.get(reverse("admin:index"), secure=True)
+
+        self.assertEqual(portal_response.status_code, 200)
+        self.assertEqual(django_admin_response.status_code, 200)
+        self.assertContains(django_admin_response, reverse("admin_dashboard"))
+        self.assertContains(
+            django_admin_response,
+            reverse("admin:curriculum_course_changelist"),
+        )
+        self.assertContains(
+            django_admin_response,
+            reverse("admin:curriculum_lesson_changelist"),
+        )
+
+    def test_django_admin_can_create_an_admin_with_portal_rights(self):
+        root_admin = CustomUser.objects.create_superuser(
+            username="django-root",
+            email="django-root@example.com",
+            password="Django-root-password-1",
+        )
+        self.client.force_login(root_admin)
+
+        response = self.client.post(
+            reverse("admin:accounts_customuser_add"),
+            {
+                "username": "backend-created-admin",
+                "email": "backend-admin@example.com",
+                "role": "admin",
+                "phone_number": "",
+                "bio": "",
+                "password1": "Complex-unrelated-Password-753!",
+                "password2": "Complex-unrelated-Password-753!",
+            },
+            secure=True,
+        )
+
+        self.assertEqual(
+            response.status_code,
+            302,
+            response.context["adminform"].form.errors if response.status_code == 200 else "",
+        )
+        created_admin = CustomUser.objects.get(username="backend-created-admin")
+        self.assertEqual(created_admin.role, "admin")
+        self.assertTrue(created_admin.is_staff)
+        self.assertTrue(created_admin.is_superuser)
 
 
 class EnsureAdminsCommandTests(TestCase):
