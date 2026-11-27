@@ -27,7 +27,10 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'default-unsafe-secret-key')
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
 ALLOWED_HOSTS = [
     host.strip()
-    for host in os.getenv('ALLOWED_HOSTS', '*').split(',')
+    for host in os.getenv(
+        'ALLOWED_HOSTS',
+        'gilgal.com.ng,www.gilgal.com.ng,multiplication-dashboard.onrender.com,localhost,127.0.0.1',
+    ).split(',')
     if host.strip()
 ]
 CSRF_TRUSTED_ORIGINS = [
@@ -40,15 +43,19 @@ CSRF_TRUSTED_ORIGINS = [
             else f"https://{origin.strip()}"
         )
     )
-    for origin in os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',')
+    for origin in os.getenv(
+        'CSRF_TRUSTED_ORIGINS',
+        'https://gilgal.com.ng,https://www.gilgal.com.ng,'
+        'https://multiplication-dashboard.onrender.com,http://localhost,http://127.0.0.1',
+    ).split(',')
     if origin.strip()
 ]
 
 # SECURITY WARNING: don't run with debug turned on in production!
 # Security Settings for HTTPS & Browsers
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 if not DEBUG:
     SECURE_SSL_REDIRECT = True
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_BROWSER_XSS_FILTER = True
