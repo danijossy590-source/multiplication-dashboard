@@ -10,6 +10,7 @@ from django.urls import reverse
 from accounts.models import CustomUser
 
 
+@override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
 class SignupRoleTests(TestCase):
     def test_landing_page_displays_orientation_content(self):
         response = self.client.get(reverse("landing"), secure=True)
@@ -32,11 +33,68 @@ class SignupRoleTests(TestCase):
             secure=True,
         )
 
-        self.assertRedirects(response, reverse("profile"), fetch_redirect_response=False)
+        self.assertRedirects(
+            response,
+            reverse("verification_email_sent"),
+            fetch_redirect_response=False,
+        )
         user = CustomUser.objects.get(username="new-mentee")
         self.assertEqual(user.role, "mentee")
         self.assertFalse(user.is_staff)
         self.assertFalse(user.is_superuser)
+        self.assertFalse(user.is_active)
+        self.assertNotIn("_auth_user_id", self.client.session)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["new-mentee@example.com"])
+
+    def test_verification_link_activates_account_once(self):
+        self.client.post(
+            reverse("signup"),
+            {
+                "username": "verify-me",
+                "email": "verify-me@example.com",
+                "password1": "Strong-password-123!",
+                "password2": "Strong-password-123!",
+            },
+            secure=True,
+        )
+
+        verification_url = next(
+            line for line in mail.outbox[0].body.splitlines()
+            if "/accounts/verify/" in line
+        )
+        response = self.client.get(verification_url, secure=True)
+
+        self.assertRedirects(response, reverse("login"), fetch_redirect_response=False)
+        user = CustomUser.objects.get(username="verify-me")
+        self.assertTrue(user.is_active)
+        self.assertNotIn("_auth_user_id", self.client.session)
+        self.assertTrue(
+            user.notifications.filter(title="Welcome to Multiply").exists()
+        )
+
+        self.client.get(verification_url, secure=True)
+        self.assertEqual(
+            list(response.wsgi_request._messages)[0].message,
+            "Your email is verified. You can now log in.",
+        )
+
+    def test_invalid_verification_link_does_not_activate_account(self):
+        user = CustomUser.objects.create_user(
+            username="unverified-user",
+            email="unverified@example.com",
+            password="Strong-password-123!",
+            is_active=False,
+        )
+
+        response = self.client.get(
+            reverse("verify_account", args=["MQ", "invalid-token"]),
+            secure=True,
+        )
+
+        self.assertRedirects(response, reverse("login"), fetch_redirect_response=False)
+        user.refresh_from_db()
+        self.assertFalse(user.is_active)
 
     def test_signup_page_does_not_show_role_selection(self):
         response = self.client.get(reverse("signup"), secure=True)

@@ -1,3 +1,4 @@
+import smtplib
 import uuid
 from pathlib import Path
 from datetime import timedelta
@@ -7,10 +8,11 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
+from django.core.mail import send_mass_mail
 from django.db import transaction
 from django.db.models import Q
 from django.http import FileResponse, Http404, HttpResponseForbidden
-from django.utils import timezone
+from django.utils import timezone, formats
 from django.utils.text import slugify
 from django.urls import reverse
 from django.views.decorators.http import require_POST
@@ -426,11 +428,49 @@ def pod_detail_view(request, pod_id):
     elif can_participate and request.method == 'POST' and 'schedule_meeting' in request.POST:
         meeting_form = PodMeetingForm(request.POST)
         if meeting_form.is_valid():
-            PodMeeting.objects.create(
+            meeting = PodMeeting.objects.create(
                 pod=pod,
                 created_by=request.user,
                 **meeting_form.cleaned_data,
             )
+            recipient_emails = set(
+                pod.memberships.filter(user__is_active=True)
+                .exclude(user__email='')
+                .values_list('user__email', flat=True)
+            )
+            if pod.leader.is_active and pod.leader.email:
+                recipient_emails.add(pod.leader.email)
+            recipient_emails.update(
+                pod.mentors.filter(mentor__is_active=True)
+                .exclude(mentor__email='')
+                .values_list('mentor__email', flat=True)
+            )
+            meeting_details = [
+                f'A new meeting has been scheduled for {pod.name}.',
+                f'Title: {meeting.title}',
+                f"When: {formats.date_format(timezone.localtime(meeting.scheduled_at), 'DATETIME_FORMAT')}",
+            ]
+            if meeting.details:
+                meeting_details.append(f'Details: {meeting.details}')
+            if meeting.meeting_url:
+                meeting_details.append(f'Meeting link: {meeting.meeting_url}')
+            emails = [
+                (
+                    f'New Pod meeting: {meeting.title}',
+                    '\n\n'.join(meeting_details),
+                    None,
+                    [email],
+                )
+                for email in sorted(recipient_emails)
+            ]
+            try:
+                send_mass_mail(emails, fail_silently=False)
+            except (smtplib.SMTPException, OSError):
+                messages.error(
+                    request,
+                    'The meeting was scheduled, but we could not send its email notifications.',
+                )
+                return redirect('pod_detail', pod_id=pod.id)
             messages.success(request, "Pod meeting scheduled.")
             return redirect('pod_detail', pod_id=pod.id)
 

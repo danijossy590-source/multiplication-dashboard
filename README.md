@@ -73,4 +73,18 @@ Pod leaders can assign a PDF or Word book to their Pod and set a reading schedul
 
 ## Account recovery email
 
-The login page includes a password-reset flow. For local development, reset emails are written to the Django console. Configure SMTP for delivery in a deployed environment using `EMAIL_BACKEND`, `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS`, and `DEFAULT_FROM_EMAIL`. Keep mail credentials in environment variables; never commit them. New accounts require an email address so members can recover their passwords.
+New accounts remain inactive until the user verifies their email. The verification link activates the account, and the login page includes a password-reset flow. Scheduling a Pod meeting emails its active members, leader, and assigned mentors individually; recipients without an email address are skipped. Locally, emails are written to the Django console unless SMTP is configured.
+
+For free outbound email, configure a Gmail account's SMTP service in the deployment environment (or local `.env`):
+
+```text
+EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_HOST_USER=your-gmail-address@gmail.com
+EMAIL_HOST_PASSWORD=your-google-app-password
+EMAIL_USE_TLS=true
+DEFAULT_FROM_EMAIL=your-gmail-address@gmail.com
+```
+
+Enable 2-Step Verification on the Gmail account and create an App Password for the application; use that password instead of the account's normal password. Keep these values in environment variables, never commit them, and restart the web service after changing them. Gmail's SMTP use is subject to Google's account limits and terms; this setup has no email-provider subscription fee. Check spam folders when testing delivery. Password-reset emails use the same SMTP configuration.

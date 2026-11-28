@@ -4,6 +4,16 @@ from . import views
 
 urlpatterns = [
     path('signup/', views.register_view, name='signup'),
+    path(
+        'verification-email-sent/',
+        views.verification_email_sent_view,
+        name='verification_email_sent',
+    ),
+    path(
+        'verify/<uidb64>/<token>/',
+        views.verify_account_view,
+        name='verify_account',
+    ),
     path('login/', views.RoleBasedLoginView.as_view(), name='login'),
     path('logout/', auth_views.LogoutView.as_view(next_page='landing'), name='logout'),
     path('profile/', views.profile_view, name='profile'),

@@ -1,13 +1,18 @@
+import smtplib
+
 from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.views import LoginView
 from django.contrib import messages
+from django.core.mail import send_mail
 from django.urls import reverse
+from django.utils.encoding import force_str
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.views.decorators.http import require_POST
 from .forms import CustomUserCreationForm, CustomUserChangeForm, ProfileForm
 from .models import CustomUser, Mentorship, Notification
 from accounts.utils import notify_user
+from accounts.tokens import account_verification_token
 from pods.models import Pod
 from curriculum.models import Lesson
 from growth.models import Assignment, Reflection
@@ -112,25 +117,68 @@ def register_view(request):
     if request.method == 'POST':
         form = CustomUserCreationForm(request.POST)
         if form.is_valid():
-            user = form.save()
-            login(request, user)
-            notify_user(
-                user,
-                'Welcome to Multiply',
-                'Your account is ready. Start by joining a pod and completing your first lesson.',
-                '/profile/'
+            user = form.save(commit=False)
+            user.is_active = False
+            user.save()
+            uid = urlsafe_base64_encode(str(user.pk).encode())
+            token = account_verification_token.make_token(user)
+            verification_url = request.build_absolute_uri(
+                reverse('verify_account', kwargs={'uidb64': uid, 'token': token})
             )
-            messages.success(
-                request, 
-                f"Welcome to Multiply, {user.username}! Your account was created successfully."
-            )
-            return redirect('profile')
+            try:
+                send_mail(
+                    'Verify your Multiply account',
+                    (
+                        f'Hello {user.get_username()},\n\n'
+                        'Please verify your email address to activate your Multiply account:\n'
+                        f'{verification_url}\n\n'
+                        'If you did not create this account, you can ignore this email.'
+                    ),
+                    None,
+                    [user.email],
+                    fail_silently=False,
+                )
+            except (smtplib.SMTPException, OSError):
+                user.delete()
+                messages.error(
+                    request,
+                    'We could not send the verification email. Please try again later.',
+                )
+            else:
+                return redirect('verification_email_sent')
         else:
             messages.error(request, "Registration failed. Please correct the errors below.")
     else:
         form = CustomUserCreationForm()
 
     return render(request, 'sign_up.html', {'form': form})
+
+
+def verification_email_sent_view(request):
+    return render(request, 'accounts/verification_email_sent.html')
+
+
+def verify_account_view(request, uidb64, token):
+    try:
+        user_id = force_str(urlsafe_base64_decode(uidb64))
+        user = CustomUser.objects.get(pk=user_id)
+    except (TypeError, ValueError, OverflowError, CustomUser.DoesNotExist):
+        user = None
+
+    if user is None or user.is_active or not account_verification_token.check_token(user, token):
+        messages.error(request, 'This verification link is invalid or has expired.')
+        return redirect('login')
+
+    user.is_active = True
+    user.save(update_fields=['is_active'])
+    notify_user(
+        user,
+        'Welcome to Multiply',
+        'Your account is ready. Start by joining a pod and completing your first lesson.',
+        '/profile/',
+    )
+    messages.success(request, 'Your email is verified. You can now log in.')
+    return redirect('login')
 
 
 @login_required

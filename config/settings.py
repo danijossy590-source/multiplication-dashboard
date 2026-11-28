@@ -203,11 +203,15 @@ DEEPSEEK_BASE_URL = os.getenv(
 DEEPSEEK_TIMEOUT = int(os.getenv('DEEPSEEK_TIMEOUT', '90'))
 
 
-# Email. Use the console backend locally; configure SMTP through environment
-# variables for password-reset delivery in a deployed environment.
+# Use the console backend locally; configure SMTP through environment variables
+# for account verification, password reset, and Pod meeting email delivery.
 EMAIL_BACKEND = os.getenv(
     'EMAIL_BACKEND',
-    'django.core.mail.backends.console.EmailBackend',
+    (
+        'django.core.mail.backends.smtp.EmailBackend'
+        if os.getenv('EMAIL_HOST')
+        else 'django.core.mail.backends.console.EmailBackend'
+    ),
 )
 EMAIL_HOST = os.getenv('EMAIL_HOST', '')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))

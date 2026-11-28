@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core import mail
 from django.test import TestCase
 from django.test import override_settings
 from django.urls import reverse
@@ -73,14 +74,17 @@ class PodBookSectioningTests(TestCase):
         )
 
 
+@override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
 class PodPageTests(TestCase):
     def setUp(self):
         self.leader = CustomUser.objects.create_user(
             username='pod-leader',
+            email='pod-leader@example.com',
             password='test-password',
         )
         self.member = CustomUser.objects.create_user(
             username='pod-member',
+            email='pod-member@example.com',
             password='test-password',
         )
         self.pod = Pod.objects.create(name='Test Pod', leader=self.leader)
@@ -196,6 +200,34 @@ class PodPageTests(TestCase):
         self.assertEqual(meeting_response.status_code, 302)
         self.assertTrue(PodMessage.objects.filter(pod=self.pod, author=self.member, body='See you all soon!').exists())
         self.assertTrue(PodMeeting.objects.filter(pod=self.pod, title='Weekly check-in').exists())
+        self.assertEqual(len(mail.outbox), 2)
+        self.assertEqual(
+            {tuple(message.to) for message in mail.outbox},
+            {('pod-leader@example.com',), ('pod-member@example.com',)},
+        )
+        self.assertTrue(all('Weekly check-in' in message.subject for message in mail.outbox))
+        self.assertTrue(all('Bring your reflections.' in message.body for message in mail.outbox))
+
+    def test_meeting_is_scheduled_and_email_failure_is_reported(self):
+        self.client.force_login(self.member)
+
+        with patch('pods.views.send_mass_mail', side_effect=OSError('SMTP unavailable')):
+            response = self.client.post(
+                reverse('pod_detail', args=[self.pod.pk]),
+                {
+                    'schedule_meeting': '1',
+                    'title': 'Email outage meeting',
+                    'scheduled_at': '2027-01-15T18:30',
+                },
+                secure=True,
+                follow=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(
+            PodMeeting.objects.filter(pod=self.pod, title='Email outage meeting').exists()
+        )
+        self.assertContains(response, 'we could not send its email notifications')
 
     def test_pod_leader_can_assign_supported_book_file_and_reading_duration(self):
         media_directory = tempfile.TemporaryDirectory()
